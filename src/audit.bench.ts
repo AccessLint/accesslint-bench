@@ -1,4 +1,4 @@
-import { describe, bench } from "vitest";
+import { describe, bench, beforeAll, afterAll } from "vitest";
 import { JSDOM } from "jsdom";
 import axe from "axe-core";
 import { runAudit } from "@accesslint/core";
@@ -9,19 +9,21 @@ const smallHtml = generateHtml(SMALL_SIZE);
 const mediumHtml = generateHtml(MEDIUM_SIZE);
 const largeHtml = generateHtml(LARGE_SIZE);
 
-// Create jsdom documents for axe-core (needs a full jsdom window)
-const smallJsdom = new JSDOM(smallHtml);
-const mediumJsdom = new JSDOM(mediumHtml);
-const largeJsdom = new JSDOM(largeHtml);
-
-// Create documents via DOMParser for @accesslint/core
+// Create jsdom documents
 const smallDoc = new JSDOM(smallHtml).window.document;
 const mediumDoc = new JSDOM(mediumHtml).window.document;
 const largeDoc = new JSDOM(largeHtml).window.document;
 
 describe("audit – 100 elements", () => {
+  beforeAll(() => {
+    axe.setup(smallDoc);
+  });
+  afterAll(() => {
+    axe.teardown();
+  });
+
   bench("axe-core", async () => {
-    await axe.run(smallJsdom.window.document);
+    await axe.run(smallDoc);
   });
 
   bench("@accesslint/core", () => {
@@ -30,8 +32,15 @@ describe("audit – 100 elements", () => {
 });
 
 describe("audit – 500 elements", () => {
+  beforeAll(() => {
+    axe.setup(mediumDoc);
+  });
+  afterAll(() => {
+    axe.teardown();
+  });
+
   bench("axe-core", async () => {
-    await axe.run(mediumJsdom.window.document);
+    await axe.run(mediumDoc);
   });
 
   bench("@accesslint/core", () => {
@@ -40,10 +49,17 @@ describe("audit – 500 elements", () => {
 });
 
 describe("audit – 2k elements", () => {
+  beforeAll(() => {
+    axe.setup(largeDoc);
+  });
+  afterAll(() => {
+    axe.teardown();
+  });
+
   bench(
     "axe-core",
     async () => {
-      await axe.run(largeJsdom.window.document);
+      await axe.run(largeDoc);
     },
     { time: 1000 },
   );
