@@ -29,3 +29,13 @@ jobs:
       - run: npm run bench
 
       - run: npm run bench:browser
+
+      - name: Web benchmark (sample)
+        run: npm run bench:web -- --size=50 --concurrency=3 --timeout=15000 --seed=42
+        continue-on-error: true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-bench-results
+          path: results/web-bench.jsonl

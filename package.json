@@ -5,13 +5,15 @@
   "type": "module",
   "scripts": {
     "bench": "vitest bench",
-    "bench:browser": "tsx src/browser-bench.ts"
+    "bench:browser": "tsx src/browser-bench.ts",
+    "bench:web": "tsx src/web-bench.ts"
   },
   "dependencies": {
     "@accesslint/core": "latest",
     "axe-core": "latest"
   },
   "devDependencies": {
+    "@codspeed/vitest-plugin": "^5.1.0",
     "jsdom": "^25.0.0",
     "playwright": "^1.58.1",
     "tsx": "^4.21.0",
