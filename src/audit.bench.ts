@@ -17,12 +17,16 @@ const largeDoc = new JSDOM(largeHtml).window.document;
 describe("audit – 100 elements", () => {
   beforeAll(async () => {
     // Warm up both libraries
+    axe.setup(smallDoc);
     await axe.run(smallDoc);
+    axe.teardown();
     runAudit(smallDoc);
   });
 
   bench("axe-core", async () => {
+    axe.setup(smallDoc);
     await axe.run(smallDoc);
+    axe.teardown();
   });
 
   bench("@accesslint/core", () => {
@@ -32,12 +36,16 @@ describe("audit – 100 elements", () => {
 
 describe("audit – 500 elements", () => {
   beforeAll(async () => {
+    axe.setup(mediumDoc);
     await axe.run(mediumDoc);
+    axe.teardown();
     runAudit(mediumDoc);
   });
 
   bench("axe-core", async () => {
+    axe.setup(mediumDoc);
     await axe.run(mediumDoc);
+    axe.teardown();
   });
 
   bench("@accesslint/core", () => {
@@ -47,12 +55,16 @@ describe("audit – 500 elements", () => {
 
 describe("audit – 2k elements", () => {
   beforeAll(async () => {
+    axe.setup(largeDoc);
     await axe.run(largeDoc);
+    axe.teardown();
     runAudit(largeDoc);
   });
 
   bench("axe-core", async () => {
+    axe.setup(largeDoc);
     await axe.run(largeDoc);
+    axe.teardown();
   }, { time: 1000 });
 
   bench("@accesslint/core", () => {
