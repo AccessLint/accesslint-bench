@@ -4,7 +4,7 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [codspeedPlugin()],
   test: {
-    environment: "jsdom",
+    environment: "happy-dom",
     hookTimeout: 60_000,
     benchmark: {
       include: ["src/**/*.bench.ts"],
