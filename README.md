@@ -4,13 +4,13 @@ Performance and concordance benchmarks comparing [axe-core](https://github.com/d
 
 ## Benchmarks
 
-### Synthetic DOM (Vitest)
+### ACT-Based DOM (Vitest)
 
-Runs both tools against synthetic HTML documents of varying sizes (100, 500, 2,000 elements) in a jsdom environment.
+Runs both tools against HTML documents composed from W3C ACT (Accessibility Conformance Testing) test cases — the same fixtures used by `@accesslint/core`'s own test suite. Documents are built at varying sizes (100, 500, 2,000 elements).
 
 ```bash
 npm run bench          # Vitest benchmarks
-npm run bench:browser  # Playwright benchmarks on the same synthetic documents
+npm run bench:browser  # Playwright benchmarks on the same ACT-based documents
 ```
 
 ### Real-World Websites
@@ -34,6 +34,20 @@ npm run bench:web -- --size=10 --timeout=15000  # quick test
 | `--seed=N` | random | Seed for reproducible sampling |
 
 ## Methodology
+
+### ACT Fixtures
+
+The benchmark documents are composed from the [W3C ACT (Accessibility Conformance Testing)](https://www.w3.org/WAI/standards-guidelines/act/) test suite — real HTML snippets designed to exercise specific accessibility rules. The fixture pool includes both passing and failing cases across 24 rules, providing a realistic mix of correct and incorrect markup.
+
+**Composition method:**
+
+1. The `<body>` innerHTML is extracted from each ACT test case
+2. Fragments with no body content (document-level-only rules like `document-title`, `html-has-lang`) are filtered out
+3. Fragments are shuffled using a seeded PRNG (mulberry32) for reproducibility
+4. Fragments are cycled until the target element count is reached
+5. The result is wrapped in a page scaffold (`<html lang>`, `<head><title>`, `<main>`, `<h1>`)
+
+This ensures the benchmark exercises real violation detection paths, not just the "no violations found" code path.
 
 ### Site Selection
 
