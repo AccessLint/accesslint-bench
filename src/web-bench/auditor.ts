@@ -10,7 +10,21 @@ const AL_PATH = resolve("node_modules/@accesslint/core/dist/index.iife.js");
  * Browser-side audit code injected via page.evaluate (as a string to
  * avoid tsx __name transforms — same pattern as browser-bench.ts).
  */
-const AUDIT_CODE = `(async () => {
+function buildAuditCode(timeout: number): string {
+  // Cap the in-page audit at 80% of the per-site timeout to leave room for navigation
+  const auditTimeout = Math.round(timeout * 0.8);
+  return `(async () => {
+  var TIMEOUT = ${auditTimeout};
+
+  function withTimeout(promise, ms) {
+    return Promise.race([
+      promise,
+      new Promise(function(_, reject) {
+        setTimeout(function() { reject(new Error("audit timeout")); }, ms);
+      })
+    ]);
+  }
+
   var alRuleWcagMap = {};
   if (window.AccessLintCore && window.AccessLintCore.getActiveRules) {
     var rules = window.AccessLintCore.getActiveRules();
@@ -23,7 +37,7 @@ const AUDIT_CODE = `(async () => {
   var axeViolations = [];
   try {
     var axeStart = performance.now();
-    var axeResults = await window.axe.run(document, { resultTypes: ["violations"] });
+    var axeResults = await withTimeout(window.axe.run(document, { resultTypes: ["violations"] }), TIMEOUT);
     axeTimeMs = performance.now() - axeStart;
     axeViolations = axeResults.violations.map(function(v) {
       return { id: v.id, tags: v.tags, nodeCount: v.nodes.length, impact: v.impact };
@@ -59,6 +73,7 @@ const AUDIT_CODE = `(async () => {
     alRuleWcagMap: alRuleWcagMap
   };
 })()`;
+}
 
 /** Map raw browser results to WCAG criteria and build per-criterion detail. */
 function buildCriteriaDetail(
@@ -119,7 +134,7 @@ export async function auditSite(
     await page.addScriptTag({ path: AXE_PATH });
     await page.addScriptTag({ path: AL_PATH });
 
-    const raw: BrowserAuditResult = await page.evaluate(AUDIT_CODE);
+    const raw: BrowserAuditResult = await page.evaluate(buildAuditCode(timeout));
     const { axeWcag, alWcag, detail } = buildCriteriaDetail(raw);
 
     const axeViolationCount = raw.axeViolations.reduce((sum, v) => sum + v.nodeCount, 0);
