@@ -3,7 +3,7 @@
  * Audits sites from the CrUX top sites list with both axe-core and @accesslint/core,
  * collecting performance and concordance data.
  *
- * Usage: npm run bench:web [-- --size=1000 --concurrency=5 --timeout=30000 --seed=42]
+ * Usage: npm run bench:web [-- --size=1000 --concurrency=5 --timeout=30000 --seed=42 --shard=1/4]
  */
 import { chromium } from "playwright";
 import { downloadAndSample } from "./web-bench/sites.js";
@@ -17,18 +17,48 @@ function parseArg(name: string): string | undefined {
   return arg?.split("=")[1];
 }
 
+// Parse --shard=INDEX/TOTAL (1-indexed)
+const shardArg = parseArg("shard");
+let shardIndex: number | undefined;
+let shardTotal: number | undefined;
+if (shardArg) {
+  const parts = shardArg.split("/");
+  if (parts.length !== 2) throw new Error(`Invalid --shard format: ${shardArg} (expected INDEX/TOTAL)`);
+  shardIndex = parseInt(parts[0], 10);
+  shardTotal = parseInt(parts[1], 10);
+  if (isNaN(shardIndex) || isNaN(shardTotal) || shardIndex < 1 || shardIndex > shardTotal) {
+    throw new Error(`Invalid --shard values: index=${shardIndex}, total=${shardTotal}`);
+  }
+}
+
+const defaultOutput = shardIndex != null
+  ? `results/web-bench-shard-${shardIndex}.jsonl`
+  : "results/web-bench.jsonl";
+
 const options: BenchOptions = {
   sampleSize: parseInt(parseArg("size") ?? "1000", 10),
   concurrency: parseInt(parseArg("concurrency") ?? "5", 10),
   timeout: parseInt(parseArg("timeout") ?? "30000", 10),
-  outputFile: parseArg("output") ?? "results/web-bench.jsonl",
+  outputFile: parseArg("output") ?? defaultOutput,
   seed: parseArg("seed") ? parseInt(parseArg("seed")!, 10) : undefined,
+  shardIndex,
+  shardTotal,
 };
 
 console.log(`\nWeb Benchmark: ${options.sampleSize} sites, concurrency=${options.concurrency}, timeout=${options.timeout}ms\n`);
 
 // Download and sample sites
-const sites = await downloadAndSample(options.sampleSize, options.seed);
+const allSites = await downloadAndSample(options.sampleSize, options.seed);
+
+// Apply sharding if requested
+let sites = allSites;
+if (options.shardIndex != null && options.shardTotal != null) {
+  const chunkSize = Math.ceil(allSites.length / options.shardTotal);
+  const start = (options.shardIndex - 1) * chunkSize;
+  const end = Math.min(start + chunkSize, allSites.length);
+  sites = allSites.slice(start, end);
+  console.log(`Shard ${options.shardIndex}/${options.shardTotal}: sites ${start + 1}–${end} of ${allSites.length}`);
+}
 
 // Launch browser
 console.log("\nLaunching browser...");

@@ -67,4 +67,6 @@ export interface BenchOptions {
   timeout: number;
   outputFile: string;
   seed?: number;
+  shardIndex?: number;
+  shardTotal?: number;
 }
