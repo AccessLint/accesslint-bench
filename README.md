@@ -2,7 +2,7 @@
 
 Performance benchmarks for [@accesslint/core](https://github.com/accesslint/core).
 
-[View results notebook](https://observablehq.com/d/5906696aceb17e7a)
+[View results notebook](https://accesslint.github.io/accesslint-bench/)
 
 ## Web Benchmark
 
