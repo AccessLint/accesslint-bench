@@ -1,5 +1,5 @@
 {
-  "name": "a11y-agent-bench",
+  "name": "accesslint-bench",
   "version": "1.0.0",
   "private": true,
   "type": "module",

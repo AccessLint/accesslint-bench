@@ -1,12 +1,12 @@
-# a11y-agent-bench
+# accesslint-bench
 
-Performance benchmarks for [@accesslint/core](https://github.com/AccessLint/a11y-agent).
+Performance benchmarks for [@accesslint/core](https://github.com/accesslint/core).
 
 ## Benchmarks
 
 ### ACT-Based DOM (Vitest)
 
-Benchmarks `@accesslint/core` against HTML documents composed from W3C ACT (Accessibility Conformance Testing) test cases — the same fixtures used by the library's own test suite. Documents are built at varying sizes (100, 500, 2,000 elements).
+Benchmarks `@accesslint/core` against HTML documents composed from W3C ACT (Accessibility Conformance Testing) test cases — the same fixtures used by the library's own test suite. Documents are built at varying sizes (100, 500, 2,000, and 5,000 elements).
 
 ```bash
 npm run bench          # Vitest benchmarks (happy-dom)
@@ -64,9 +64,9 @@ Before sampling, the CrUX list is filtered against the [StevenBlack/hosts](https
 For each sampled site, a Chromium browser page:
 
 1. Navigates to the origin URL
-2. Injects [@accesslint/core](https://www.npmjs.com/package/@accesslint/core) via script tag
-3. Runs the audit, measuring wall-clock execution time
-4. Collects violation summaries (rule IDs, WCAG criteria, element counts)
+2. Injects both [axe-core](https://www.npmjs.com/package/axe-core) and [@accesslint/core](https://www.npmjs.com/package/@accesslint/core) via script tags
+3. Runs both audits, measuring wall-clock execution time for each
+4. Collects violation summaries (rule IDs, WCAG criteria, element counts) and calculates concordance between the two engines
 
 Rules run against the DOM after `DOMContentLoaded` (HTML parsed, but async resources like images may still be loading). Sites that fail to load (timeouts, connection errors, CSP blocks) are recorded as errors and excluded from aggregate statistics.
 

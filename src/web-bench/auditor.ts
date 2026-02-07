@@ -128,31 +128,44 @@ export async function auditSite(
   const page = await context.newPage();
   page.setDefaultTimeout(timeout);
 
+  // Hard deadline: if anything hangs beyond 2× the per-site timeout, force-close the page.
+  const hardTimeout = timeout * 2;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      page.close({ runBeforeUnload: false }).catch(() => {});
+      reject(new Error(`hard timeout after ${hardTimeout}ms`));
+    }, hardTimeout);
+  });
+
   try {
-    await page.goto(origin, { waitUntil: "domcontentloaded", timeout });
+    const result = await Promise.race([deadline, (async (): Promise<SiteResult> => {
+      await page.goto(origin, { waitUntil: "domcontentloaded", timeout });
 
-    await page.addScriptTag({ path: AXE_PATH });
-    await page.addScriptTag({ path: AL_PATH });
+      await page.addScriptTag({ path: AXE_PATH });
+      await page.addScriptTag({ path: AL_PATH });
 
-    const raw: BrowserAuditResult = await page.evaluate(buildAuditCode(timeout));
-    const { axeWcag, alWcag, detail } = buildCriteriaDetail(raw);
+      const raw: BrowserAuditResult = await page.evaluate(buildAuditCode(timeout));
+      const { axeWcag, alWcag, detail } = buildCriteriaDetail(raw);
 
-    const axeViolationCount = raw.axeViolations.reduce((sum, v) => sum + v.nodeCount, 0);
-    const alViolationCount = raw.alViolations.reduce((sum, v) => sum + v.count, 0);
+      const axeViolationCount = raw.axeViolations.reduce((sum, v) => sum + v.nodeCount, 0);
+      const alViolationCount = raw.alViolations.reduce((sum, v) => sum + v.count, 0);
 
-    return {
-      origin,
-      rank,
-      status: "ok",
-      axeTimeMs: raw.axeTimeMs,
-      alTimeMs: raw.alTimeMs,
-      axeViolationCount,
-      alViolationCount,
-      axeWcagCriteria: axeWcag,
-      alWcagCriteria: alWcag,
-      criteriaDetail: detail,
-      timestamp: new Date().toISOString(),
-    };
+      return {
+        origin,
+        rank,
+        status: "ok",
+        axeTimeMs: raw.axeTimeMs,
+        alTimeMs: raw.alTimeMs,
+        axeViolationCount,
+        alViolationCount,
+        axeWcagCriteria: axeWcag,
+        alWcagCriteria: alWcag,
+        criteriaDetail: detail,
+        timestamp: new Date().toISOString(),
+      };
+    })()]);
+    return result;
   } catch (err) {
     return {
       origin,
@@ -169,6 +182,10 @@ export async function auditSite(
       timestamp: new Date().toISOString(),
     };
   } finally {
-    await page.close();
+    clearTimeout(timer);
+    await Promise.race([
+      page.close().catch(() => {}),
+      new Promise((r) => setTimeout(r, 5000)),
+    ]);
   }
 }
