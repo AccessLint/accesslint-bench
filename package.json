@@ -5,7 +5,6 @@
   "type": "module",
   "scripts": {
     "bench": "vitest bench",
-    "bench:browser": "tsx src/browser-bench.ts",
     "bench:web": "tsx src/web-bench.ts"
   },
   "dependencies": {

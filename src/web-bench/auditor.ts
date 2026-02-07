@@ -8,7 +8,7 @@ const AL_PATH = resolve("node_modules/@accesslint/core/dist/index.iife.js");
 
 /**
  * Browser-side audit code injected via page.evaluate (as a string to
- * avoid tsx __name transforms — same pattern as browser-bench.ts).
+ * avoid tsx __name transforms).
  */
 function buildAuditCode(timeout: number): string {
   // Cap the in-page audit at 80% of the per-site timeout to leave room for navigation

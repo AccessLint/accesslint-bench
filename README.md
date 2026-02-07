@@ -10,7 +10,6 @@ Benchmarks `@accesslint/core` against HTML documents composed from W3C ACT (Acce
 
 ```bash
 npm run bench          # Vitest benchmarks (happy-dom)
-npm run bench:browser  # Playwright benchmarks (Chromium)
 ```
 
 ### Real-World Websites
