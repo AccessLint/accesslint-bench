@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bench": "vitest bench",
     "bench:web": "tsx src/web-bench.ts"
   },
   "dependencies": {
@@ -12,12 +11,8 @@
     "axe-core": "latest"
   },
   "devDependencies": {
-    "@codspeed/vitest-plugin": "^5.1.0",
-    "happy-dom": "^20.5.0",
     "playwright": "^1.58.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.7.0",
-    "vite": "^6.0.0",
-    "vitest": "^3.0.0"
+    "typescript": "^5.7.0"
   }
 }

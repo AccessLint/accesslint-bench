@@ -2,17 +2,9 @@
 
 Performance benchmarks for [@accesslint/core](https://github.com/accesslint/core).
 
-## Benchmarks
+[View results notebook](https://observablehq.com/d/5906696aceb17e7a)
 
-### ACT-Based DOM (Vitest)
-
-Benchmarks `@accesslint/core` against HTML documents composed from W3C ACT (Accessibility Conformance Testing) test cases — the same fixtures used by the library's own test suite. Documents are built at varying sizes (100, 500, 2,000, and 5,000 elements).
-
-```bash
-npm run bench          # Vitest benchmarks (happy-dom)
-```
-
-### Real-World Websites
+## Web Benchmark
 
 Audits a sample of real websites in a Chromium browser, collecting performance timing.
 
@@ -22,7 +14,7 @@ npm run bench:web -- --size=100 --seed=42       # 100 sites, reproducible
 npm run bench:web -- --size=10 --timeout=15000  # quick test
 ```
 
-#### Options
+### Options
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -33,20 +25,6 @@ npm run bench:web -- --size=10 --timeout=15000  # quick test
 | `--seed=N` | random | Seed for reproducible sampling |
 
 ## Methodology
-
-### ACT Fixtures
-
-The benchmark documents are composed from the [W3C ACT (Accessibility Conformance Testing)](https://www.w3.org/WAI/standards-guidelines/act/) test suite — real HTML snippets designed to exercise specific accessibility rules. The fixture pool includes both passing and failing cases across 24 rules, providing a realistic mix of correct and incorrect markup.
-
-**Composition method:**
-
-1. The `<body>` innerHTML is extracted from each ACT test case
-2. Fragments with no body content (document-level-only rules like `document-title`, `html-has-lang`) are filtered out
-3. Fragments are shuffled using a seeded PRNG (mulberry32) for reproducibility
-4. Fragments are cycled until the target element count is reached
-5. The result is wrapped in a page scaffold (`<html lang>`, `<head><title>`, `<main>`, `<h1>`)
-
-This ensures the benchmark exercises real violation detection paths, not just the "no violations found" code path.
 
 ### Site Selection
 
