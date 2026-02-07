@@ -14,7 +14,7 @@ concurrency:
 jobs:
   web-bench:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -28,7 +28,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
 
       - name: Run web benchmark (sample)
-        run: npm run bench:web -- --size=50 --concurrency=3 --timeout=15000 --seed=42
+        run: npm run bench:web -- --size=1000 --concurrency=3 --timeout=15000 --seed=42
         continue-on-error: true
 
       - uses: actions/upload-artifact@v4
