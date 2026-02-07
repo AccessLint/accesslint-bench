@@ -3,7 +3,7 @@
  * Audits sites from the CrUX top sites list with both axe-core and @accesslint/core,
  * collecting performance and concordance data.
  *
- * Usage: npm run bench:web [-- --size=1000 --concurrency=5 --timeout=30000 --seed=42 --shard=1/4]
+ * Usage: npm run bench:web [-- --size=5000 --concurrency=5 --timeout=30000 --seed=42 --shard=1/10]
  */
 import { chromium } from "playwright";
 import { downloadAndSample } from "./web-bench/sites.js";
@@ -36,7 +36,7 @@ const defaultOutput = shardIndex != null
   : "results/web-bench.jsonl";
 
 const options: BenchOptions = {
-  sampleSize: parseInt(parseArg("size") ?? "1000", 10),
+  sampleSize: parseInt(parseArg("size") ?? "5000", 10),
   concurrency: parseInt(parseArg("concurrency") ?? "5", 10),
   timeout: parseInt(parseArg("timeout") ?? "30000", 10),
   outputFile: parseArg("output") ?? defaultOutput,

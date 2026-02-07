@@ -9,7 +9,7 @@ Performance benchmarks for [@accesslint/core](https://github.com/accesslint/core
 Audits a sample of real websites in a Chromium browser, collecting performance timing.
 
 ```bash
-npm run bench:web                               # 1,000 sites (default)
+npm run bench:web                               # 5,000 sites (default)
 npm run bench:web -- --size=100 --seed=42       # 100 sites, reproducible
 npm run bench:web -- --size=10 --timeout=15000  # quick test
 ```
@@ -18,7 +18,7 @@ npm run bench:web -- --size=10 --timeout=15000  # quick test
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--size=N` | `1000` | Number of sites to sample |
+| `--size=N` | `5000` | Number of sites to sample |
 | `--concurrency=N` | `5` | Parallel browser pages |
 | `--timeout=N` | `30000` | Per-site timeout (ms) |
 | `--output=PATH` | `results/web-bench.jsonl` | Output file |
