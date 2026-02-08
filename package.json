@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bench:web": "tsx src/web-bench.ts"
+    "bench:web": "tsx src/web-bench.ts",
+    "generate:drilldowns": "tsx src/web-bench/generate-drilldowns.ts"
   },
   "dependencies": {
-    "@accesslint/core": "latest",
+    "@accesslint/core": "^0.3.7",
     "axe-core": "latest"
   },
   "devDependencies": {
