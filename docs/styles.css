@@ -149,26 +149,30 @@ body {
 }
 
 .hero-stats {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
   justify-content: center;
-  gap: var(--space-md);
-  flex-wrap: wrap;
+  gap: 0 var(--space-md);
   margin-bottom: var(--space-md);
 }
 
 .hero-stats dt {
+  grid-row: 1;
   font-size: 2rem;
   font-weight: 700;
   line-height: 1.2;
 }
 
 .hero-stats dd {
+  grid-row: 2;
   font-size: 0.875rem;
   opacity: 0.8;
 }
 
 .cta {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
+  margin-inline: auto;
   align-items: center;
   gap: var(--space-xs);
   background: var(--color-accent);
