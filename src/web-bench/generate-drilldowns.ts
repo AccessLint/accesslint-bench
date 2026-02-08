@@ -139,7 +139,9 @@ function renderExampleTable(
       ? `\n    <p>${totalCount - sites.length} more not shown.</p>`
       : "";
 
-  return `    <h3>${escapeHtml(label)}: ${totalCount} sites</h3>
+  const sitesWord = totalCount === 1 ? "site" : "sites";
+
+  return `    <h3>${escapeHtml(label)}: ${totalCount} ${sitesWord}</h3>
     <div class="bench-table-wrap">
       <table class="bench-table">
         <thead>
@@ -218,7 +220,7 @@ function renderPage(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} — a11y agent</title>
-<meta name="description" content="Per-criterion drilldown for ${escapeHtml(title)}: example sites from each disagreement bucket.">
+<meta name="description" content="${escapeHtml(title)}: detailed comparison of axe-core and @accesslint/core detection across 5,000 sites.">
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/styles.css">
 </head>
@@ -229,7 +231,7 @@ function renderPage(
   <nav class="site-nav" aria-label="Main">
     <a class="logo" href="/">a11y agent</a>
     <ul>
-      <li><a href="/benches/">Benchmarks</a></li>
+      <li><a href="/benches/" aria-current="true">Benchmarks</a></li>
       <li><a href="https://github.com/accesslint/core">GitHub</a></li>
       <li><a href="https://chromewebstore.google.com/detail/a11y-agent/dlfhldnfebkdpfiadgfbbokhkilkcldi"><span class="nav-full">Chrome Web Store</span><span class="nav-short">Install</span></a></li>
     </ul>
