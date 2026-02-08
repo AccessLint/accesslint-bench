@@ -72,18 +72,3 @@ for (const key of ["both", "axeOnly", "alOnly"] as const) {
   }
   console.log();
 }
-
-// Summary of incomplete results for this criterion if available
-const incompleteSites = ok.filter(
-  (r) => r.axeIncompleteWcagCriteria?.includes(criterion),
-);
-if (incompleteSites.length > 0) {
-  console.log(`--- axe incomplete (reviewOnFail): ${incompleteSites.length} sites ---`);
-  for (const s of incompleteSites.slice(0, 10)) {
-    console.log(`  ${s.origin} (rank ${s.rank})`);
-  }
-  if (incompleteSites.length > 10) {
-    console.log(`  ... and ${incompleteSites.length - 10} more`);
-  }
-  console.log();
-}

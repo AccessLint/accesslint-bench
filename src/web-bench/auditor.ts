@@ -37,17 +37,13 @@ function buildAuditCode(timeout: number): string {
 
   var axeTimeMs = 0;
   var axeViolations = [];
-  var axeIncomplete = [];
   var axeStatus = "ok";
   var axeError = null;
   try {
     var axeStart = performance.now();
-    var axeResults = await withTimeout(window.axe.run(document, { resultTypes: ["violations", "incomplete"] }), TIMEOUT);
+    var axeResults = await withTimeout(window.axe.run(document, { resultTypes: ["violations"] }), TIMEOUT);
     axeTimeMs = performance.now() - axeStart;
     axeViolations = axeResults.violations.map(function(v) {
-      return { id: v.id, tags: v.tags, nodeCount: v.nodes.length, impact: v.impact };
-    });
-    axeIncomplete = (axeResults.incomplete || []).map(function(v) {
       return { id: v.id, tags: v.tags, nodeCount: v.nodes.length, impact: v.impact };
     });
   } catch (e) {
@@ -88,7 +84,6 @@ function buildAuditCode(timeout: number): string {
     axeError: axeError,
     alError: alError,
     axeViolations: axeViolations,
-    axeIncomplete: axeIncomplete,
     alViolations: alViolations,
     alRuleWcagMap: alRuleWcagMap
   };
@@ -101,7 +96,6 @@ function buildCriteriaDetail(
 ): {
   axeWcag: string[];
   alWcag: string[];
-  axeIncompleteWcag: string[];
   detail: CriterionPageResult[];
 } {
   const axeWcagSet = new Set<string>();
@@ -115,14 +109,6 @@ function buildCriteriaDetail(
       existing.push(v.id);
       axeCriteriaToRules.set(c, existing);
       axeCriteriaNodeCount.set(c, (axeCriteriaNodeCount.get(c) ?? 0) + v.nodeCount);
-    }
-  }
-
-  // Collect incomplete criteria separately (e.g. bypass with reviewOnFail)
-  const axeIncompleteWcagSet = new Set<string>();
-  for (const v of raw.axeIncomplete) {
-    for (const c of deduplicateOverlapping(extractAxeWcagCriteria(v.tags))) {
-      axeIncompleteWcagSet.add(c);
     }
   }
 
@@ -154,7 +140,6 @@ function buildCriteriaDetail(
   return {
     axeWcag: [...axeWcagSet].sort(),
     alWcag: [...alWcagSet].sort(),
-    axeIncompleteWcag: [...axeIncompleteWcagSet].sort(),
     detail,
   };
 }
@@ -211,11 +196,10 @@ export async function auditSite(
       await page.addScriptTag({ path: AL_PATH });
 
       const raw: BrowserAuditResult = await page.evaluate(buildAuditCode(timeout));
-      const { axeWcag, alWcag, axeIncompleteWcag, detail } = buildCriteriaDetail(raw);
+      const { axeWcag, alWcag, detail } = buildCriteriaDetail(raw);
 
       const axeViolationCount = raw.axeViolations.reduce((sum, v) => sum + v.nodeCount, 0);
       const alViolationCount = raw.alViolations.reduce((sum, v) => sum + v.count, 0);
-      const axeIncompleteCount = raw.axeIncomplete.reduce((sum, v) => sum + v.nodeCount, 0);
 
       return {
         origin,
@@ -230,10 +214,8 @@ export async function auditSite(
         alError: raw.alError,
         axeViolationCount,
         alViolationCount,
-        axeIncompleteCount,
         axeWcagCriteria: axeWcag,
         alWcagCriteria: alWcag,
-        axeIncompleteWcagCriteria: axeIncompleteWcag,
         criteriaDetail: detail,
         timestamp: new Date().toISOString(),
       };
@@ -254,10 +236,8 @@ export async function auditSite(
       alError: null,
       axeViolationCount: 0,
       alViolationCount: 0,
-      axeIncompleteCount: 0,
       axeWcagCriteria: [],
       alWcagCriteria: [],
-      axeIncompleteWcagCriteria: [],
       criteriaDetail: [],
       timestamp: new Date().toISOString(),
     };
