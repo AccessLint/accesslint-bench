@@ -224,10 +224,10 @@ function renderPage(
         <thead>
           <tr>
             <th>WCAG Criterion</th>
-            <th>AL detects</th>
+            <th>@accesslint/core detects</th>
             <th>axe confirms</th>
             <th>IBM confirms</th>
-            <th>AL unique</th>
+            <th>Unique</th>
           </tr>
         </thead>
         <tbody>
