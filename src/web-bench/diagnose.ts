@@ -29,29 +29,38 @@ interface Bucket {
 }
 
 const buckets: Record<string, Bucket> = {
-  both: { label: "Both tools found", sites: [] },
+  allThree: { label: "All three tools found", sites: [] },
   axeOnly: { label: "axe-core only", sites: [] },
   alOnly: { label: "@accesslint/core only", sites: [] },
+  ibmOnly: { label: "IBM EA only", sites: [] },
+  twoOfThree: { label: "Two of three tools found", sites: [] },
 };
 
 for (const r of ok) {
   const detail = r.criteriaDetail.find((d) => d.criterion === criterion);
   const axeHas = r.axeWcagCriteria.includes(criterion);
   const alHas = r.alWcagCriteria.includes(criterion);
+  const ibmHas = (r.ibmWcagCriteria ?? []).includes(criterion);
 
-  if (axeHas && alHas) {
-    buckets.both.sites.push({ origin: r.origin, rank: r.rank, detail: detail! });
+  const count = (axeHas ? 1 : 0) + (alHas ? 1 : 0) + (ibmHas ? 1 : 0);
+
+  if (count === 3) {
+    buckets.allThree.sites.push({ origin: r.origin, rank: r.rank, detail: detail! });
+  } else if (count === 2) {
+    buckets.twoOfThree.sites.push({ origin: r.origin, rank: r.rank, detail: detail! });
   } else if (axeHas) {
     buckets.axeOnly.sites.push({ origin: r.origin, rank: r.rank, detail: detail! });
   } else if (alHas) {
     buckets.alOnly.sites.push({ origin: r.origin, rank: r.rank, detail: detail! });
+  } else if (ibmHas) {
+    buckets.ibmOnly.sites.push({ origin: r.origin, rank: r.rank, detail: detail! });
   }
 }
 
 console.log(`\nDiagnostics for criterion ${criterion}`);
 console.log(`Total OK sites: ${ok.length}\n`);
 
-for (const key of ["both", "axeOnly", "alOnly"] as const) {
+for (const key of ["allThree", "twoOfThree", "axeOnly", "alOnly", "ibmOnly"] as const) {
   const bucket = buckets[key];
   console.log(`--- ${bucket.label}: ${bucket.sites.length} sites ---`);
 
@@ -60,10 +69,12 @@ for (const key of ["both", "axeOnly", "alOnly"] as const) {
     const d = s.detail;
     const axeNodes = d?.axeNodeCount ?? "?";
     const alNodes = d?.alNodeCount ?? "?";
+    const ibmNodes = d?.ibmNodeCount ?? "?";
     console.log(
       `  ${s.origin} (rank ${s.rank})` +
         `  axe:[${d?.axeRuleIds.join(",") ?? ""}] nodes=${axeNodes}` +
-        `  al:[${d?.alRuleIds.join(",") ?? ""}] nodes=${alNodes}`,
+        `  al:[${d?.alRuleIds.join(",") ?? ""}] nodes=${alNodes}` +
+        `  ibm:[${d?.ibmRuleIds.join(",") ?? ""}] nodes=${ibmNodes}`,
     );
   }
 

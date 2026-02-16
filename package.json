@@ -8,7 +8,8 @@
     "generate:drilldowns": "tsx src/web-bench/generate-drilldowns.ts"
   },
   "dependencies": {
-    "@accesslint/core": "^0.3.7",
+    "@accesslint/core": "^0.6.3",
+    "accessibility-checker-engine": "^4.0.12",
     "axe-core": "latest"
   },
   "devDependencies": {

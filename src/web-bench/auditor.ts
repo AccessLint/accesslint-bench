@@ -5,6 +5,7 @@ import { extractAxeWcagCriteria, deduplicateOverlapping } from "./wcag-mapping.j
 
 const AXE_PATH = resolve("node_modules/axe-core/axe.min.js");
 const AL_PATH = resolve("node_modules/@accesslint/core/dist/index.iife.js");
+const IBM_PATH = resolve("node_modules/accessibility-checker-engine/ace.js");
 
 /**
  * Browser-side audit code injected via page.evaluate (as a string to
@@ -75,17 +76,74 @@ function buildAuditCode(timeout: number): string {
     alError = e instanceof Error ? e.message : String(e);
   }
 
+  var ibmTimeMs = 0;
+  var ibmViolations = [];
+  var ibmStatus = "ok";
+  var ibmError = null;
+  var ibmRuleWcagMap = {};
+  try {
+    var checker = new ace.Checker();
+
+    var guidelines = checker.getGuidelines();
+    for (var gi = 0; gi < guidelines.length; gi++) {
+      if (guidelines[gi].id !== "WCAG_2_2") continue;
+      var checkpoints = guidelines[gi].checkpoints;
+      for (var ci = 0; ci < checkpoints.length; ci++) {
+        var cp = checkpoints[ci];
+        var cpNum = cp.num;
+        if (!cpNum) continue;
+        var cpRules = cp.rules || [];
+        for (var ri = 0; ri < cpRules.length; ri++) {
+          var rId = cpRules[ri].id;
+          if (!ibmRuleWcagMap[rId]) ibmRuleWcagMap[rId] = [];
+          if (ibmRuleWcagMap[rId].indexOf(cpNum) === -1) {
+            ibmRuleWcagMap[rId].push(cpNum);
+          }
+        }
+      }
+    }
+
+    var origLog = console.log;
+    console.log = function() {};
+    var ibmStart = performance.now();
+    var ibmReport = await withTimeout(checker.check(document, ["WCAG_2_2"]), TIMEOUT);
+    ibmTimeMs = performance.now() - ibmStart;
+    console.log = origLog;
+
+    var ibmViolMap = {};
+    for (var vi = 0; vi < ibmReport.results.length; vi++) {
+      var issue = ibmReport.results[vi];
+      if (issue.value[0] === "VIOLATION" && issue.value[1] === "FAIL") {
+        if (!ibmViolMap[issue.ruleId]) {
+          ibmViolMap[issue.ruleId] = { ruleId: issue.ruleId, count: 0 };
+        }
+        ibmViolMap[issue.ruleId].count++;
+      }
+    }
+    ibmViolations = Object.values(ibmViolMap);
+  } catch (e) {
+    console.log = origLog || console.log;
+    ibmTimeMs = -1;
+    ibmStatus = "error";
+    ibmError = e instanceof Error ? e.message : String(e);
+  }
+
   return {
     domElementCount: domElementCount,
     axeTimeMs: axeTimeMs,
     alTimeMs: alTimeMs,
+    ibmTimeMs: ibmTimeMs,
     axeStatus: axeStatus,
     alStatus: alStatus,
+    ibmStatus: ibmStatus,
     axeError: axeError,
     alError: alError,
+    ibmError: ibmError,
     axeViolations: axeViolations,
     alViolations: alViolations,
-    alRuleWcagMap: alRuleWcagMap
+    ibmViolations: ibmViolations,
+    alRuleWcagMap: alRuleWcagMap,
+    ibmRuleWcagMap: ibmRuleWcagMap
   };
 })()`;
 }
@@ -96,6 +154,7 @@ function buildCriteriaDetail(
 ): {
   axeWcag: string[];
   alWcag: string[];
+  ibmWcag: string[];
   detail: CriterionPageResult[];
 } {
   const axeWcagSet = new Set<string>();
@@ -126,25 +185,43 @@ function buildCriteriaDetail(
     }
   }
 
-  const allCriteria = new Set([...axeWcagSet, ...alWcagSet]);
+  const ibmWcagSet = new Set<string>();
+  const ibmCriteriaToRules = new Map<string, string[]>();
+  const ibmCriteriaNodeCount = new Map<string, number>();
+  for (const v of raw.ibmViolations) {
+    const criteria = raw.ibmRuleWcagMap[v.ruleId] ?? [];
+    for (const c of criteria) {
+      ibmWcagSet.add(c);
+      const existing = ibmCriteriaToRules.get(c) ?? [];
+      existing.push(v.ruleId);
+      ibmCriteriaToRules.set(c, existing);
+      ibmCriteriaNodeCount.set(c, (ibmCriteriaNodeCount.get(c) ?? 0) + v.count);
+    }
+  }
+
+  const allCriteria = new Set([...axeWcagSet, ...alWcagSet, ...ibmWcagSet]);
   const detail: CriterionPageResult[] = [...allCriteria].sort().map((criterion) => ({
     criterion,
     axeFound: axeWcagSet.has(criterion),
     alFound: alWcagSet.has(criterion),
+    ibmFound: ibmWcagSet.has(criterion),
     axeRuleIds: axeCriteriaToRules.get(criterion) ?? [],
     alRuleIds: alCriteriaToRules.get(criterion) ?? [],
+    ibmRuleIds: ibmCriteriaToRules.get(criterion) ?? [],
     axeNodeCount: axeCriteriaNodeCount.get(criterion) ?? 0,
     alNodeCount: alCriteriaNodeCount.get(criterion) ?? 0,
+    ibmNodeCount: ibmCriteriaNodeCount.get(criterion) ?? 0,
   }));
 
   return {
     axeWcag: [...axeWcagSet].sort(),
     alWcag: [...alWcagSet].sort(),
+    ibmWcag: [...ibmWcagSet].sort(),
     detail,
   };
 }
 
-/** Audit a single site with both axe-core and @accesslint/core. */
+/** Audit a single site with axe-core, @accesslint/core, and IBM Equal Access. */
 export async function auditSite(
   context: BrowserContext,
   origin: string,
@@ -194,12 +271,14 @@ export async function auditSite(
 
       await page.addScriptTag({ path: AXE_PATH });
       await page.addScriptTag({ path: AL_PATH });
+      await page.addScriptTag({ path: IBM_PATH });
 
       const raw: BrowserAuditResult = await page.evaluate(buildAuditCode(timeout));
-      const { axeWcag, alWcag, detail } = buildCriteriaDetail(raw);
+      const { axeWcag, alWcag, ibmWcag, detail } = buildCriteriaDetail(raw);
 
       const axeViolationCount = raw.axeViolations.reduce((sum, v) => sum + v.nodeCount, 0);
       const alViolationCount = raw.alViolations.reduce((sum, v) => sum + v.count, 0);
+      const ibmViolationCount = raw.ibmViolations.reduce((sum, v) => sum + v.count, 0);
 
       return {
         origin,
@@ -208,14 +287,19 @@ export async function auditSite(
         domElementCount: raw.domElementCount,
         axeTimeMs: raw.axeTimeMs,
         alTimeMs: raw.alTimeMs,
+        ibmTimeMs: raw.ibmTimeMs,
         axeStatus: raw.axeStatus,
         alStatus: raw.alStatus,
+        ibmStatus: raw.ibmStatus,
         axeError: raw.axeError,
         alError: raw.alError,
+        ibmError: raw.ibmError,
         axeViolationCount,
         alViolationCount,
+        ibmViolationCount,
         axeWcagCriteria: axeWcag,
         alWcagCriteria: alWcag,
+        ibmWcagCriteria: ibmWcag,
         criteriaDetail: detail,
         timestamp: new Date().toISOString(),
       };
@@ -230,14 +314,19 @@ export async function auditSite(
       domElementCount: 0,
       axeTimeMs: 0,
       alTimeMs: 0,
+      ibmTimeMs: 0,
       axeStatus: "error",
       alStatus: "error",
+      ibmStatus: "error",
       axeError: null,
       alError: null,
+      ibmError: null,
       axeViolationCount: 0,
       alViolationCount: 0,
+      ibmViolationCount: 0,
       axeWcagCriteria: [],
       alWcagCriteria: [],
+      ibmWcagCriteria: [],
       criteriaDetail: [],
       timestamp: new Date().toISOString(),
     };
