@@ -59,7 +59,7 @@ function selectExamples(sites: BucketSite[], max: number): BucketSite[] {
   const groups = new Map<string, BucketSite[]>();
   for (const site of sites) {
     const key =
-      [...site.detail.axeRuleIds, ...site.detail.alRuleIds][0] ?? "unknown";
+      [...site.detail.axeRuleIds, ...site.detail.alRuleIds, ...site.detail.ibmRuleIds][0] ?? "unknown";
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(site);
   }
@@ -89,12 +89,12 @@ function selectExamples(sites: BucketSite[], max: number): BucketSite[] {
 
 function computeRuleFrequencies(
   sites: BucketSite[],
-  tool: "axe" | "al",
+  tool: "axe" | "al" | "ibm",
 ): RuleFrequency[] {
   const counts = new Map<string, number>();
   for (const site of sites) {
     const ruleIds =
-      tool === "axe" ? site.detail.axeRuleIds : site.detail.alRuleIds;
+      tool === "axe" ? site.detail.axeRuleIds : tool === "al" ? site.detail.alRuleIds : site.detail.ibmRuleIds;
     for (const id of ruleIds) {
       counts.set(id, (counts.get(id) ?? 0) + 1);
     }
@@ -130,6 +130,8 @@ function renderExampleTable(
             <td>${d.axeNodeCount}</td>
             <td>${d.alRuleIds.join(", ") || "&mdash;"}</td>
             <td>${d.alNodeCount}</td>
+            <td>${d.ibmRuleIds.join(", ") || "&mdash;"}</td>
+            <td>${d.ibmNodeCount}</td>
           </tr>`;
     })
     .join("\n");
@@ -151,6 +153,8 @@ function renderExampleTable(
             <th>axe nodes</th>
             <th>@accesslint/core rules</th>
             <th>@accesslint/core nodes</th>
+            <th>IBM EA rules</th>
+            <th>IBM EA nodes</th>
           </tr>
         </thead>
         <tbody>
@@ -163,19 +167,23 @@ ${rows}
 function renderRulesTable(
   axeRules: RuleFrequency[],
   alRules: RuleFrequency[],
+  ibmRules: RuleFrequency[],
 ): string {
-  if (axeRules.length === 0 && alRules.length === 0) return "";
+  if (axeRules.length === 0 && alRules.length === 0 && ibmRules.length === 0) return "";
 
-  const maxRows = Math.max(axeRules.length, alRules.length);
+  const maxRows = Math.max(axeRules.length, alRules.length, ibmRules.length);
   const rows: string[] = [];
   for (let i = 0; i < maxRows; i++) {
     const axe = axeRules[i];
     const al = alRules[i];
+    const ibm = ibmRules[i];
     rows.push(`          <tr>
             <td>${axe ? escapeHtml(axe.ruleId) : ""}</td>
             <td>${axe ? axe.count : ""}</td>
             <td>${al ? escapeHtml(al.ruleId) : ""}</td>
             <td>${al ? al.count : ""}</td>
+            <td>${ibm ? escapeHtml(ibm.ruleId) : ""}</td>
+            <td>${ibm ? ibm.count : ""}</td>
           </tr>`);
   }
 
@@ -189,6 +197,8 @@ function renderRulesTable(
             <th>Sites</th>
             <th>@accesslint/core rule</th>
             <th>Sites</th>
+            <th>IBM EA rule</th>
+            <th>Sites</th>
           </tr>
         </thead>
         <tbody>
@@ -201,18 +211,23 @@ ${rows.join("\n")}
 function renderPage(
   criterion: string,
   name: string,
-  concordance: { bothFound: number; axeOnly: number; alOnly: number; agreement: number },
+  concordance: { allThree: number; twoOfThree: number; oneOnly: number; noneFound: number },
   axeRules: RuleFrequency[],
   alRules: RuleFrequency[],
-  bothExamples: BucketSite[],
-  bothTotal: number,
+  ibmRules: RuleFrequency[],
+  allThreeExamples: BucketSite[],
+  allThreeTotal: number,
+  twoOfThreeExamples: BucketSite[],
+  twoOfThreeTotal: number,
   axeOnlyExamples: BucketSite[],
   axeOnlyTotal: number,
   alOnlyExamples: BucketSite[],
   alOnlyTotal: number,
+  ibmOnlyExamples: BucketSite[],
+  ibmOnlyTotal: number,
 ): string {
   const title = `WCAG ${criterion}: ${name}`;
-  const agreementPct = `${Math.round(concordance.agreement * 100)}%`;
+  const totalDetected = concordance.allThree + concordance.twoOfThree + concordance.oneOnly;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -220,18 +235,18 @@ function renderPage(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} — a11y agent</title>
-<meta name="description" content="${escapeHtml(title)}: detailed comparison of axe-core and @accesslint/core detection across 5,000 sites.">
-<link rel="icon" href="/core/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/core/styles.css">
+<meta name="description" content="${escapeHtml(title)}: comparison of axe-core, @accesslint/core, and IBM Equal Access detection across sites.">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
 
 <header>
   <nav class="site-nav" aria-label="Main">
-    <a class="logo" href="/core/benches/">@accesslint/core</a>
+    <a class="logo" href="/benches/">@accesslint/core</a>
     <ul>
-      <li><a href="/core/benches/" aria-current="true">Benchmarks</a></li>
+      <li><a href="/benches/" aria-current="true">Benchmarks</a></li>
       <li><a href="https://github.com/accesslint/core">GitHub</a></li>
     </ul>
   </nav>
@@ -243,34 +258,40 @@ function renderPage(
 
     <dl class="bench-stats">
       <div>
-        <dt>${concordance.bothFound.toLocaleString()}</dt>
-        <dd>both tools</dd>
+        <dt>${concordance.allThree.toLocaleString()}</dt>
+        <dd>all three tools</dd>
       </div>
       <div>
-        <dt>${concordance.axeOnly.toLocaleString()}</dt>
-        <dd>axe-only</dd>
+        <dt>${concordance.twoOfThree.toLocaleString()}</dt>
+        <dd>two of three</dd>
       </div>
       <div>
-        <dt>${concordance.alOnly.toLocaleString()}</dt>
-        <dd>@accesslint/core only</dd>
+        <dt>${concordance.oneOnly.toLocaleString()}</dt>
+        <dd>one tool only</dd>
       </div>
       <div>
-        <dt>${agreementPct}</dt>
-        <dd>agreement</dd>
+        <dt>${totalDetected.toLocaleString()}</dt>
+        <dd>any tool</dd>
       </div>
     </dl>
 
-${renderRulesTable(axeRules, alRules)}
+${renderRulesTable(axeRules, alRules, ibmRules)}
 
     <h2>Examples</h2>
 
-${renderExampleTable("Both", bothExamples, bothTotal)}
+${renderExampleTable("All three", allThreeExamples, allThreeTotal)}
+
+${renderExampleTable("Two of three", twoOfThreeExamples, twoOfThreeTotal)}
 
 ${renderExampleTable("axe-only", axeOnlyExamples, axeOnlyTotal)}
 
 ${renderExampleTable("@accesslint/core only", alOnlyExamples, alOnlyTotal)}
 
-    <p><a href="/core/benches/">&larr; Back to benchmarks</a></p>
+${renderExampleTable("IBM EA only", ibmOnlyExamples, ibmOnlyTotal)}
+
+    <p><a href="/benches/">&larr; Back to benchmarks</a></p>
+
+    <p class="bench-updated">Last updated <time datetime="${new Date().toISOString().slice(0, 10)}">${new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })}</time></p>
   </article>
 </main>
 
@@ -303,50 +324,62 @@ for (const [criterion, name] of Object.entries(CRITERIA)) {
   }
 
   // Bucket sites
-  const both: BucketSite[] = [];
+  const allThreeSites: BucketSite[] = [];
+  const twoOfThreeSites: BucketSite[] = [];
   const axeOnly: BucketSite[] = [];
   const alOnly: BucketSite[] = [];
+  const ibmOnly: BucketSite[] = [];
 
   for (const r of ok) {
     const detail = r.criteriaDetail.find((d) => d.criterion === criterion);
     const axeHas = r.axeWcagCriteria.includes(criterion);
     const alHas = r.alWcagCriteria.includes(criterion);
+    const ibmHas = (r.ibmWcagCriteria ?? []).includes(criterion);
 
-    if (axeHas && alHas) {
-      both.push({ origin: r.origin, rank: r.rank, detail: detail! });
+    const count = (axeHas ? 1 : 0) + (alHas ? 1 : 0) + (ibmHas ? 1 : 0);
+    const fallbackDetail: CriterionPageResult = {
+      criterion,
+      axeFound: axeHas,
+      alFound: alHas,
+      ibmFound: ibmHas,
+      axeRuleIds: [],
+      alRuleIds: [],
+      ibmRuleIds: [],
+      axeNodeCount: 0,
+      alNodeCount: 0,
+      ibmNodeCount: 0,
+    };
+
+    if (count === 3) {
+      allThreeSites.push({ origin: r.origin, rank: r.rank, detail: detail ?? fallbackDetail });
+    } else if (count === 2) {
+      twoOfThreeSites.push({ origin: r.origin, rank: r.rank, detail: detail ?? fallbackDetail });
     } else if (axeHas) {
-      axeOnly.push({ origin: r.origin, rank: r.rank, detail: detail! });
+      axeOnly.push({ origin: r.origin, rank: r.rank, detail: detail ?? fallbackDetail });
     } else if (alHas) {
-      alOnly.push({
-        origin: r.origin,
-        rank: r.rank,
-        detail: detail ?? {
-          criterion,
-          axeFound: false,
-          alFound: true,
-          axeRuleIds: [],
-          alRuleIds: [],
-          axeNodeCount: 0,
-          alNodeCount: 0,
-        },
-      });
+      alOnly.push({ origin: r.origin, rank: r.rank, detail: detail ?? fallbackDetail });
+    } else if (ibmHas) {
+      ibmOnly.push({ origin: r.origin, rank: r.rank, detail: detail ?? fallbackDetail });
     }
   }
 
   // Sort by rank ascending
-  both.sort((a, b) => a.rank - b.rank);
-  axeOnly.sort((a, b) => a.rank - b.rank);
-  alOnly.sort((a, b) => a.rank - b.rank);
+  for (const bucket of [allThreeSites, twoOfThreeSites, axeOnly, alOnly, ibmOnly]) {
+    bucket.sort((a, b) => a.rank - b.rank);
+  }
 
   // Compute rule frequencies from ALL sites (not just examples)
-  const allSitesForCriterion = [...both, ...axeOnly, ...alOnly];
+  const allSitesForCriterion = [...allThreeSites, ...twoOfThreeSites, ...axeOnly, ...alOnly, ...ibmOnly];
   const axeRules = computeRuleFrequencies(allSitesForCriterion, "axe");
   const alRules = computeRuleFrequencies(allSitesForCriterion, "al");
+  const ibmRules = computeRuleFrequencies(allSitesForCriterion, "ibm");
 
   // Select examples
-  const bothExamples = selectExamples(both, 10);
+  const allThreeExamples = selectExamples(allThreeSites, 10);
+  const twoOfThreeExamples = selectExamples(twoOfThreeSites, 10);
   const axeOnlyExamples = selectExamples(axeOnly, 10);
   const alOnlyExamples = selectExamples(alOnly, 10);
+  const ibmOnlyExamples = selectExamples(ibmOnly, 10);
 
   // Write HTML
   const dir = resolve(outputDir, criterion);
@@ -357,12 +390,17 @@ for (const [criterion, name] of Object.entries(CRITERIA)) {
     conc,
     axeRules,
     alRules,
-    bothExamples,
-    both.length,
+    ibmRules,
+    allThreeExamples,
+    allThreeSites.length,
+    twoOfThreeExamples,
+    twoOfThreeSites.length,
     axeOnlyExamples,
     axeOnly.length,
     alOnlyExamples,
     alOnly.length,
+    ibmOnlyExamples,
+    ibmOnly.length,
   );
   writeFileSync(resolve(dir, "index.html"), html);
   console.log(`  ${criterion} ${name} → ${dir}/index.html`);
