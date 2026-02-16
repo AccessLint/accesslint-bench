@@ -46,12 +46,6 @@ function median(values: number[]): number {
   return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
 }
 
-function percentile(values: number[], p: number): number {
-  const sorted = values.slice().sort((a, b) => a - b);
-  const idx = Math.ceil((p / 100) * sorted.length) - 1;
-  return sorted[Math.max(0, idx)];
-}
-
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -60,33 +54,70 @@ function escapeHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-function fmtMs(ms: number): string {
-  return ms < 1 ? `<1 ms` : `${Math.round(ms)} ms`;
-}
-
 function buildSpeedChartData(ok: SiteResult[]) {
   const axeMedian = Math.round(median(ok.map((r) => r.axeTimeMs)));
   const alMedian = Math.round(median(ok.map((r) => r.alTimeMs)));
   const ibmMedian = Math.round(median(ok.map((r) => r.ibmTimeMs)));
 
+  // Sort by duration descending
+  const tools = [
+    { name: "IBM EA", value: ibmMedian, color: "#be95ff" },
+    { name: "axe-core", value: axeMedian, color: "#555555" },
+    { name: "@accesslint/core", value: alMedian, color: "#0055cc" },
+  ].sort((a, b) => b.value - a.value);
+
   return {
-    categories: ["axe-core", "@accesslint/core", "IBM EA"],
-    values: [axeMedian, alMedian, ibmMedian],
-    colors: ["#555555", "#0055cc", "#be95ff"],
+    categories: tools.map((t) => t.name),
+    values: tools.map((t) => t.value),
+    colors: tools.map((t) => t.color),
   };
 }
 
-function buildConcordanceChartData(concordances: CriterionConcordance[]) {
-  // Sort by total detected descending
-  const sorted = concordances
-    .filter((c) => c.criterion in CRITERIA)
-    .sort((a, b) => (b.allThree + b.twoOfThree + b.oneOnly) - (a.allThree + a.twoOfThree + a.oneOnly));
+interface AlCoverageStat {
+  criterion: string;
+  alDetects: number;
+  confirmedByAxe: number;
+  confirmedByIBM: number;
+  alUnique: number;
+  bothConfirm: number;
+  axeOnlyConfirms: number;
+  ibmOnlyConfirms: number;
+}
 
+function computeAlCoverage(ok: SiteResult[]): AlCoverageStat[] {
+  const stats: AlCoverageStat[] = [];
+
+  for (const criterion of Object.keys(CRITERIA)) {
+    let alDetects = 0, confirmedByAxe = 0, confirmedByIBM = 0, alUnique = 0;
+    let bothConfirm = 0, axeOnlyConfirms = 0, ibmOnlyConfirms = 0;
+
+    for (const r of ok) {
+      const alHas = r.alWcagCriteria.includes(criterion);
+      if (!alHas) continue;
+      alDetects++;
+      const axeHas = r.axeWcagCriteria.includes(criterion);
+      const ibmHas = (r.ibmWcagCriteria ?? []).includes(criterion);
+      if (axeHas) confirmedByAxe++;
+      if (ibmHas) confirmedByIBM++;
+      if (axeHas && ibmHas) bothConfirm++;
+      else if (axeHas) axeOnlyConfirms++;
+      else if (ibmHas) ibmOnlyConfirms++;
+      else alUnique++;
+    }
+
+    stats.push({ criterion, alDetects, confirmedByAxe, confirmedByIBM, alUnique, bothConfirm, axeOnlyConfirms, ibmOnlyConfirms });
+  }
+
+  return stats.sort((a, b) => b.alDetects - a.alDetects);
+}
+
+function buildConcordanceChartData(stats: AlCoverageStat[]) {
   return {
-    categories: sorted.map((c) => `${c.criterion} ${CRITERIA[c.criterion] ?? ""}`),
-    allThree: sorted.map((c) => c.allThree),
-    twoOfThree: sorted.map((c) => c.twoOfThree),
-    oneOnly: sorted.map((c) => c.oneOnly),
+    categories: stats.map((s) => `${s.criterion} ${CRITERIA[s.criterion] ?? ""}`),
+    bothConfirm: stats.map((s) => s.bothConfirm),
+    axeConfirms: stats.map((s) => s.axeOnlyConfirms),
+    ibmConfirms: stats.map((s) => s.ibmOnlyConfirms),
+    alUnique: stats.map((s) => s.alUnique),
   };
 }
 
@@ -114,61 +145,43 @@ function buildKappaChartData(concordances: CriterionConcordance[]) {
   return { labels, data };
 }
 
-function renderCoverageRow(c: CriterionConcordance): string {
-  const name = CRITERIA[c.criterion];
+function renderCoverageRow(s: AlCoverageStat): string {
+  const name = CRITERIA[s.criterion];
   if (!name) return "";
-  const total = c.allThree + c.twoOfThree + c.oneOnly;
   return `          <tr>
-            <td><a href="/benches/criteria/${c.criterion}/">${c.criterion} ${escapeHtml(name)}</a></td>
-            <td>${c.allThree.toLocaleString()}</td>
-            <td>${c.twoOfThree.toLocaleString()}</td>
-            <td>${c.oneOnly.toLocaleString()}</td>
-            <td>${total.toLocaleString()}</td>
-            <td>${c.axeAlKappa.toFixed(2)}</td>
-            <td>${c.axeIbmKappa.toFixed(2)}</td>
-            <td>${c.alIbmKappa.toFixed(2)}</td>
+            <td><a href="/benches/criteria/${s.criterion}/">${s.criterion} ${escapeHtml(name)}</a></td>
+            <td>${s.alDetects.toLocaleString()}</td>
+            <td>${s.confirmedByAxe.toLocaleString()}</td>
+            <td>${s.confirmedByIBM.toLocaleString()}</td>
+            <td>${s.alUnique.toLocaleString()}</td>
           </tr>`;
 }
 
 function renderPage(
   ok: SiteResult[],
+  alCoverage: AlCoverageStat[],
   concordances: CriterionConcordance[],
   totalSites: number,
 ): string {
   const axeMedian = Math.round(median(ok.map((r) => r.axeTimeMs)));
   const alMedian = Math.round(median(ok.map((r) => r.alTimeMs)));
   const ibmMedian = Math.round(median(ok.map((r) => r.ibmTimeMs)));
-  const fastest = Math.min(alMedian, axeMedian, ibmMedian);
-  const slowest = Math.max(alMedian, axeMedian, ibmMedian);
-  const speedupRatio = fastest > 0 ? Math.round(slowest / fastest) : 1;
+  const axeSpeedup = axeMedian > 0 ? Math.round(axeMedian / alMedian) : 1;
+  const ibmSpeedup = ibmMedian > 0 ? Math.round(ibmMedian / alMedian) : 1;
 
-  // Which tool is fastest?
-  const fastestTool = alMedian <= axeMedian && alMedian <= ibmMedian ? "@accesslint/core"
-    : axeMedian <= ibmMedian ? "axe-core" : "IBM EA";
+  // Confirmation rate
+  const totalAlDetects = alCoverage.reduce((s, c) => s + c.alDetects, 0);
+  const totalConfirmed = alCoverage.reduce((s, c) => s + c.alDetects - c.alUnique, 0);
+  const confirmationPct = totalAlDetects > 0 ? Math.round((totalConfirmed / totalAlDetects) * 100) : 0;
 
-  // Percentage of sites where AL is faster than both
-  const alFasterCount = ok.filter((r) => r.alTimeMs < r.axeTimeMs && r.alTimeMs < r.ibmTimeMs).length;
-  const alFasterPct = ((alFasterCount / ok.length) * 100).toFixed(1);
-
-  // Sort concordances for display
-  const sortedConc = concordances
-    .filter((c) => c.criterion in CRITERIA)
-    .sort((a, b) => (b.allThree + b.twoOfThree + b.oneOnly) - (a.allThree + a.twoOfThree + a.oneOnly));
-
-  const coverageRows = sortedConc.map(renderCoverageRow).filter(Boolean).join("\n");
+  const coverageRows = alCoverage.map(renderCoverageRow).filter(Boolean).join("\n");
 
   const speedData = JSON.stringify(buildSpeedChartData(ok));
-  const concordanceData = JSON.stringify(buildConcordanceChartData(concordances));
+  const concordanceData = JSON.stringify(buildConcordanceChartData(alCoverage));
   const kappaData = JSON.stringify(buildKappaChartData(concordances));
 
   const dateIso = new Date().toISOString().slice(0, 10);
   const dateHuman = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-
-  // CSS bar widths
-  const maxMs = Math.max(axeMedian, alMedian, ibmMedian);
-  const axeBarPct = Math.round((axeMedian / maxMs) * 100);
-  const alBarPct = Math.round((alMedian / maxMs) * 100);
-  const ibmBarPct = Math.round((ibmMedian / maxMs) * 100);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -200,66 +213,21 @@ function renderPage(
     <h1>Benchmarks</h1>
     <p>axe-core vs <code>@accesslint/core</code> vs IBM Equal Access, tested against ${totalSites.toLocaleString()} sites from the Chrome UX Report.</p>
 
-    <dl class="bench-stats">
-      <div>
-        <dt>${totalSites.toLocaleString()}</dt>
-        <dd>sites tested</dd>
-      </div>
-      <div>
-        <dt>${speedupRatio}&times;</dt>
-        <dd>faster at median</dd>
-      </div>
-      <div>
-        <dt>${alFasterPct}%</dt>
-        <dd>of sites faster</dd>
-      </div>
-      <div>
-        <dt>${fmtMs(alMedian)}</dt>
-        <dd>median audit time</dd>
-      </div>
-    </dl>
-
     <h2>Speed</h2>
     <p>Median audit time across ${ok.length.toLocaleString()} successful site audits.</p>
-    <div class="bench-bars" role="img" aria-label="Bar chart: axe-core ${fmtMs(axeMedian)}, @accesslint/core ${fmtMs(alMedian)}, IBM EA ${fmtMs(ibmMedian)}">
-      <div class="bench-bar">
-        <span class="bench-bar-label">axe-core</span>
-        <div class="bench-bar-track">
-          <div class="bench-bar-fill bench-bar-fill--axe" style="width: ${axeBarPct}%"></div>
-        </div>
-        <span class="bench-bar-value">${fmtMs(axeMedian)}</span>
-      </div>
-      <div class="bench-bar">
-        <span class="bench-bar-label"><code>@accesslint/core</code></span>
-        <div class="bench-bar-track">
-          <div class="bench-bar-fill bench-bar-fill--al" style="width: ${alBarPct}%"></div>
-        </div>
-        <span class="bench-bar-value">${fmtMs(alMedian)}</span>
-      </div>
-      <div class="bench-bar">
-        <span class="bench-bar-label">IBM EA</span>
-        <div class="bench-bar-track">
-          <div class="bench-bar-fill bench-bar-fill--ibm" style="width: ${ibmBarPct}%"></div>
-        </div>
-        <span class="bench-bar-value">${fmtMs(ibmMedian)}</span>
-      </div>
-    </div>
     <div id="chart-speed"></div>
 
     <h2>Coverage</h2>
-    <p>Per-criterion concordance across all three tools. Click a criterion to see examples.</p>
+    <p>What <code>@accesslint/core</code> detects and how often other tools agree. ${confirmationPct}% of detections are confirmed by at least one other tool. Click a criterion to see examples.</p>
     <div class="bench-table-wrap">
       <table class="bench-table">
         <thead>
           <tr>
             <th>WCAG Criterion</th>
-            <th>All three</th>
-            <th>Two of three</th>
-            <th>One only</th>
-            <th>Any tool</th>
-            <th>Axe↔AL κ</th>
-            <th>Axe↔IBM κ</th>
-            <th>AL↔IBM κ</th>
+            <th>AL detects</th>
+            <th>axe confirms</th>
+            <th>IBM confirms</th>
+            <th>AL unique</th>
           </tr>
         </thead>
         <tbody>
@@ -275,9 +243,9 @@ ${coverageRows}
 
     <h2>Key findings</h2>
     <ul class="bench-takeaways">
-      <li><code>${escapeHtml(fastestTool)}</code> is <strong>${speedupRatio}&times; faster</strong> at median</li>
-      <li>High agreement on major criteria like link-name, resize-text, and image-alt</li>
-      <li>Three-tool concordance provides a stronger signal than any single tool alone</li>
+      <li><code>@accesslint/core</code> is <strong>${axeSpeedup}&times; faster</strong> than axe-core and <strong>${ibmSpeedup}&times; faster</strong> than IBM EA at median</li>
+      <li><strong>${confirmationPct}%</strong> of <code>@accesslint/core</code> detections are confirmed by at least one other tool</li>
+      <li>Near-perfect agreement with axe-core on link-name, resize-text, and language-of-page</li>
     </ul>
 
     <h2>Methodology</h2>
@@ -324,9 +292,10 @@ const totalSites = results.length;
 console.log(`Loaded ${results.length} results (${ok.length} OK)`);
 
 const concordances = calculateConcordance(results);
+const alCoverage = computeAlCoverage(ok);
 
 mkdirSync(resolve(outputDir), { recursive: true });
-const html = renderPage(ok, concordances, totalSites);
+const html = renderPage(ok, alCoverage, concordances, totalSites);
 writeFileSync(resolve(outputDir, "index.html"), html);
 console.log(`  index.html → ${outputDir}/index.html`);
 console.log("Done.");
