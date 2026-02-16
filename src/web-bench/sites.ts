@@ -5,7 +5,7 @@ import { Readable, Writable } from "node:stream";
 const CRUX_URL =
   "https://raw.githubusercontent.com/zakird/crux-top-lists/main/data/global/current.csv.gz";
 const BLOCKLIST_URL =
-  "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn/hosts";
+  "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/fakenews-gambling-porn/hosts";
 
 /** Seeded PRNG (mulberry32) for reproducible sampling. */
 function mulberry32(seed: number) {
