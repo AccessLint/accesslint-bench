@@ -95,15 +95,22 @@ jobs:
         run: npx tsx src/web-bench/generate-drilldowns.ts --input results/web-bench.jsonl --output-dir ../core-gh-pages/benches/criteria
         working-directory: bench
 
+      - name: Update last-updated timestamp
+        working-directory: core-gh-pages
+        run: |
+          DATE_ISO=$(date -u +%Y-%m-%d)
+          DATE_HUMAN=$(date -u +"%B %-d, %Y")
+          sed -i "s|<time datetime=\"[0-9-]*\">[A-Za-z]* [0-9]*, [0-9]*</time>|<time datetime=\"${DATE_ISO}\">${DATE_HUMAN}</time>|g" benches/index.html
+
       - name: Commit and push to core gh-pages
         working-directory: core-gh-pages
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add benches/criteria
+          git add benches/
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Update benchmark drilldown pages"
+            git commit -m "Update benchmark pages"
             git push
           fi
