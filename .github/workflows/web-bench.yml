@@ -69,48 +69,32 @@ jobs:
     if: github.event_name != 'pull_request'
     steps:
       - uses: actions/checkout@v4
-        with:
-          path: bench
-
-      - uses: actions/checkout@v4
-        with:
-          repository: AccessLint/core
-          ref: gh-pages
-          token: ${{ secrets.CORE_DEPLOY_TOKEN }}
-          path: core-gh-pages
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - run: npm install
-        working-directory: bench
 
       - uses: actions/download-artifact@v4
         with:
           name: web-bench-results
-          path: bench/results
+          path: results
 
-      - name: Generate index page
-        run: npx tsx src/web-bench/generate-index.ts --input results/web-bench.jsonl --output-dir ../core-gh-pages/benches
-        working-directory: bench
+      - name: Process bench data
+        run: npx tsx src/web-bench/process-bench-data.ts --input results/web-bench.jsonl --output-dir bench-data
 
-      - name: Generate drilldown pages
-        run: npx tsx src/web-bench/generate-drilldowns.ts --input results/web-bench.jsonl --output-dir ../core-gh-pages/benches/criteria
-        working-directory: bench
+      - name: Upload bench data artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-data
+          path: bench-data/
 
-      - name: Copy charts.js
-        run: cp bench/src/web-bench/charts.js core-gh-pages/benches/charts.js
-
-      - name: Commit and push to core gh-pages
-        working-directory: core-gh-pages
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add benches/
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Update benchmark pages"
-            git push
-          fi
+      - name: Dispatch to core.accesslint.com
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.CORE_DEPLOY_TOKEN }}
+          repository: accesslint/core.accesslint.com
+          event-type: bench-data-ready
+          client-payload: '{"run_id": "${{ github.run_id }}"}'
