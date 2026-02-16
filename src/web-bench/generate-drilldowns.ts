@@ -248,6 +248,7 @@ function renderPage(
     <ul>
       <li><a href="/benches/" aria-current="true">Benchmarks</a></li>
       <li><a href="https://github.com/accesslint/core">GitHub</a></li>
+      <li><a href="https://a11yagent.ai">a11y agent</a></li>
     </ul>
   </nav>
 </header>
