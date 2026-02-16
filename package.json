@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "bench:web": "tsx src/web-bench.ts",
-    "generate:drilldowns": "tsx src/web-bench/generate-drilldowns.ts"
+    "generate:drilldowns": "tsx src/web-bench/generate-drilldowns.ts",
+    "generate:index": "tsx src/web-bench/generate-index.ts"
   },
   "dependencies": {
     "@accesslint/core": "^0.6.3",

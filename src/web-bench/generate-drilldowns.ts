@@ -144,7 +144,7 @@ function renderExampleTable(
   const sitesWord = totalCount === 1 ? "site" : "sites";
 
   return `    <h3>${escapeHtml(label)}: ${totalCount} ${sitesWord}</h3>
-    <div class="bench-table-wrap">
+    <div class="bench-table-wrap" tabindex="0" role="region" aria-label="${escapeHtml(label)} examples">
       <table class="bench-table">
         <thead>
           <tr>
@@ -189,7 +189,7 @@ function renderRulesTable(
 
   return `    <h2>Rules</h2>
     <p>Which rule IDs fire for this criterion and how many sites they appear on.</p>
-    <div class="bench-table-wrap">
+    <div class="bench-table-wrap" tabindex="0" role="region" aria-label="Rule frequency comparison">
       <table class="bench-table">
         <thead>
           <tr>
@@ -206,6 +206,19 @@ ${rows.join("\n")}
         </tbody>
       </table>
     </div>`;
+}
+
+function buildRuleChartData(
+  axeRules: RuleFrequency[],
+  alRules: RuleFrequency[],
+  ibmRules: RuleFrequency[],
+  topN = 10,
+) {
+  return {
+    axe: axeRules.slice(0, topN),
+    al: alRules.slice(0, topN),
+    ibm: ibmRules.slice(0, topN),
+  };
 }
 
 function renderPage(
@@ -228,6 +241,14 @@ function renderPage(
 ): string {
   const title = `WCAG ${criterion}: ${name}`;
   const totalDetected = concordance.allThree + concordance.twoOfThree + concordance.oneOnly;
+
+  const agreementData = JSON.stringify({
+    allThree: concordance.allThree,
+    twoOfThree: concordance.twoOfThree,
+    oneOnly: concordance.oneOnly,
+  });
+
+  const rulesData = JSON.stringify(buildRuleChartData(axeRules, alRules, ibmRules));
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -276,8 +297,10 @@ function renderPage(
         <dd>any tool</dd>
       </div>
     </dl>
+    <div id="chart-agreement"></div>
 
 ${renderRulesTable(axeRules, alRules, ibmRules)}
+    <div id="chart-rules"></div>
 
     <h2>Examples</h2>
 
@@ -300,6 +323,12 @@ ${renderExampleTable("IBM EA only", ibmOnlyExamples, ibmOnlyTotal)}
 <footer class="site-footer">
   <p>Built by <a href="https://github.com/accesslint">AccessLint</a>. MIT License.</p>
 </footer>
+
+<script type="application/json" id="chart-data-agreement">${agreementData}</script>
+<script type="application/json" id="chart-data-rules">${rulesData}</script>
+<script src="https://code.highcharts.com/highcharts.js" defer></script>
+<script src="https://code.highcharts.com/modules/accessibility.js" defer></script>
+<script src="/benches/charts.js" defer></script>
 </body>
 </html>
 `;

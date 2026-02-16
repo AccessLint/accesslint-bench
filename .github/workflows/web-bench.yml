@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]
     steps:
       - uses: actions/checkout@v4
 
@@ -35,7 +35,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
 
       - name: Run web benchmark (shard ${{ matrix.shard }}/10)
-        run: npm run bench:web -- --size=5000 --concurrency=5 --timeout=15000 --seed=42 --shard=${{ matrix.shard }}/10
+        run: npm run bench:web -- --size=5000 --concurrency=5 --timeout=15000 --seed=42 --shard=${{ matrix.shard }}/20
         continue-on-error: true
 
       - uses: actions/upload-artifact@v4
@@ -91,16 +91,16 @@ jobs:
           name: web-bench-results
           path: bench/results
 
+      - name: Generate index page
+        run: npx tsx src/web-bench/generate-index.ts --input results/web-bench.jsonl --output-dir ../core-gh-pages/benches
+        working-directory: bench
+
       - name: Generate drilldown pages
         run: npx tsx src/web-bench/generate-drilldowns.ts --input results/web-bench.jsonl --output-dir ../core-gh-pages/benches/criteria
         working-directory: bench
 
-      - name: Update last-updated timestamp
-        working-directory: core-gh-pages
-        run: |
-          DATE_ISO=$(date -u +%Y-%m-%d)
-          DATE_HUMAN=$(date -u +"%B %-d, %Y")
-          sed -i "s|<time datetime=\"[0-9-]*\">[A-Za-z]* [0-9]*, [0-9]*</time>|<time datetime=\"${DATE_ISO}\">${DATE_HUMAN}</time>|g" benches/index.html
+      - name: Copy charts.js
+        run: cp bench/src/web-bench/charts.js core-gh-pages/benches/charts.js
 
       - name: Commit and push to core gh-pages
         working-directory: core-gh-pages
