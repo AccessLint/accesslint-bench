@@ -4,7 +4,7 @@
  *
  * Reads results/web-bench.jsonl, buckets sites per WCAG criterion,
  * selects representative examples, and writes one static HTML page
- * per criterion into the a11y-agent docs repo.
+ * per criterion into the core repo's gh-pages branch.
  *
  * Usage:
  *   npx tsx src/web-bench/generate-drilldowns.ts [--input FILE] [--output-dir DIR]
@@ -39,7 +39,7 @@ interface RuleFrequency {
 function parseArgs(): { input: string; outputDir: string } {
   const args = process.argv.slice(2);
   let input = "results/web-bench.jsonl";
-  let outputDir = "../a11y-agent/docs/benches/criteria";
+  let outputDir = "../core/benches/criteria";
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--input" && args[i + 1]) {
@@ -221,19 +221,18 @@ function renderPage(
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} — a11y agent</title>
 <meta name="description" content="${escapeHtml(title)}: detailed comparison of axe-core and @accesslint/core detection across 5,000 sites.">
-<link rel="icon" href="/icon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="/core/icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/core/styles.css">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
 
 <header>
   <nav class="site-nav" aria-label="Main">
-    <a class="logo" href="/">a11y agent</a>
+    <a class="logo" href="/core/benches/">@accesslint/core</a>
     <ul>
-      <li><a href="/benches/" aria-current="true">Benchmarks</a></li>
+      <li><a href="/core/benches/" aria-current="true">Benchmarks</a></li>
       <li><a href="https://github.com/accesslint/core">GitHub</a></li>
-      <li><a href="https://chromewebstore.google.com/detail/a11y-agent/dlfhldnfebkdpfiadgfbbokhkilkcldi"><span class="nav-full">Chrome Web Store</span><span class="nav-short">Install</span></a></li>
     </ul>
   </nav>
 </header>
@@ -271,7 +270,7 @@ ${renderExampleTable("axe-only", axeOnlyExamples, axeOnlyTotal)}
 
 ${renderExampleTable("@accesslint/core only", alOnlyExamples, alOnlyTotal)}
 
-    <p><a href="/benches/">&larr; Back to benchmarks</a></p>
+    <p><a href="/core/benches/">&larr; Back to benchmarks</a></p>
   </article>
 </main>
 
