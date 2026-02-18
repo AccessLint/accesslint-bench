@@ -1,6 +1,6 @@
 {
   "name": "accesslint-bench",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,7 +9,7 @@
     "generate:index": "tsx src/web-bench/generate-index.ts"
   },
   "dependencies": {
-    "@accesslint/core": "^0.6.3",
+    "@accesslint/core": "^0.6.6",
     "accessibility-checker-engine": "^4.0.12",
     "axe-core": "latest"
   },
