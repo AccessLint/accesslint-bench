@@ -12,18 +12,9 @@
  */
 import { readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { calculateConcordance } from "./concordance.js";
 import type { SiteResult, CriterionPageResult } from "./types.js";
-
-const CRITERIA: Record<string, string> = {
-  "4.1.2": "Name, Role, Value",
-  "1.4.3": "Contrast (Minimum)",
-  "2.4.4": "Link Purpose (In Context)",
-  "1.1.1": "Non-text Content",
-  "1.4.4": "Resize Text",
-  "1.3.1": "Info and Relationships",
-  "3.1.1": "Language of Page",
-  "2.1.1": "Keyboard",
-};
+import { selectTopCriteria } from "./wcag-criteria.js";
 
 function parseArgs(): { input: string; outputDir: string } {
   const args = process.argv.slice(2);
@@ -62,10 +53,10 @@ interface AlCoverageStat {
   alUnique: number;
 }
 
-function computeAlCoverage(ok: SiteResult[]): AlCoverageStat[] {
+function computeAlCoverage(ok: SiteResult[], criteria: Record<string, string>): AlCoverageStat[] {
   const stats: AlCoverageStat[] = [];
 
-  for (const [criterion, name] of Object.entries(CRITERIA)) {
+  for (const [criterion, name] of Object.entries(criteria)) {
     let alDetects = 0, confirmedByAxe = 0, alUnique = 0;
 
     for (const r of ok) {
@@ -178,6 +169,8 @@ function toExample(site: BucketSite) {
     axeNodeCount: site.detail.axeNodeCount ?? 0,
     alRuleIds: site.detail.alRuleIds ?? [],
     alNodeCount: site.detail.alNodeCount ?? 0,
+    elementIntersection: site.detail.elementIntersection ?? 0,
+    elementUnion: site.detail.elementUnion ?? 0,
   };
 }
 
@@ -192,7 +185,12 @@ const totalSites = results.length;
 
 console.log(`Loaded ${results.length} results (${ok.length} OK)`);
 
-const alCoverage = computeAlCoverage(ok);
+const CRITERIA = selectTopCriteria(ok);
+console.log(`Auto-selected ${Object.keys(CRITERIA).length} criteria by detection count`);
+
+const alCoverage = computeAlCoverage(ok, CRITERIA);
+const concordances = calculateConcordance(results);
+const concordanceMap = new Map(concordances.map((c) => [c.criterion, c]));
 
 // Compute summary stats
 const axeMedian = safeMedian(ok.map((r) => r.axeTimeMs));
@@ -227,6 +225,7 @@ console.log(`  summary.json → ${outputDir}/summary.json`);
 
 // Write per-criterion JSON
 for (const [criterion, name] of Object.entries(CRITERIA)) {
+  const conc = concordanceMap.get(criterion);
   const bothSites: BucketSite[] = [];
   const axeOnly: BucketSite[] = [];
   const alOnly: BucketSite[] = [];
@@ -240,13 +239,12 @@ for (const [criterion, name] of Object.entries(CRITERIA)) {
       criterion,
       axeFound: axeHas,
       alFound: alHas,
-      ibmFound: false,
       axeRuleIds: [],
       alRuleIds: [],
-      ibmRuleIds: [],
       axeNodeCount: 0,
       alNodeCount: 0,
-      ibmNodeCount: 0,
+      elementIntersection: 0,
+      elementUnion: 0,
     };
 
     if (axeHas && alHas) {
@@ -273,6 +271,7 @@ for (const [criterion, name] of Object.entries(CRITERIA)) {
       both: bothSites.length,
       axeOnly: axeOnly.length,
       alOnly: alOnly.length,
+      medianJaccard: conc?.medianJaccard ?? 0,
     },
     rules: {
       axe: axeRules.slice(0, 10),

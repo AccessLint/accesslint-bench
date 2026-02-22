@@ -72,59 +72,60 @@ export function printSummary(
   // Audit-specific errors
   const axeErrors = ok.filter((r) => r.axeStatus === "error");
   const alErrors = ok.filter((r) => r.alStatus === "error");
-  const ibmErrors = ok.filter((r) => r.ibmStatus === "error");
-  if (axeErrors.length > 0 || alErrors.length > 0 || ibmErrors.length > 0) {
+  if (axeErrors.length > 0 || alErrors.length > 0) {
     console.log("\n  Audit Errors (on otherwise successful pages)");
     console.log(`    axe-core errors:   ${axeErrors.length}`);
     console.log(`    @accesslint errors: ${alErrors.length}`);
-    console.log(`    IBM EA errors:     ${ibmErrors.length}`);
   }
 
   // Performance
   const axeTimes = ok.map((r) => r.axeTimeMs);
   const alTimes = ok.map((r) => r.alTimeMs);
-  const ibmTimes = ok.map((r) => r.ibmTimeMs);
 
   console.log("\n  Performance (ms)");
-  console.log(`  ${"".padEnd(18)} ${"axe-core".padStart(10)}  ${"@accesslint".padStart(12)}  ${"IBM EA".padStart(10)}`);
-  console.log(`  ${"Mean".padEnd(18)} ${fmtMs(mean(axeTimes)).padStart(10)}  ${fmtMs(mean(alTimes)).padStart(12)}  ${fmtMs(mean(ibmTimes)).padStart(10)}`);
-  console.log(`  ${"Median".padEnd(18)} ${fmtMs(median(axeTimes)).padStart(10)}  ${fmtMs(median(alTimes)).padStart(12)}  ${fmtMs(median(ibmTimes)).padStart(10)}`);
-  console.log(`  ${"P95".padEnd(18)} ${fmtMs(percentile(axeTimes, 95)).padStart(10)}  ${fmtMs(percentile(alTimes, 95)).padStart(12)}  ${fmtMs(percentile(ibmTimes, 95)).padStart(10)}`);
-  console.log(`  ${"Min".padEnd(18)} ${fmtMs(Math.min(...axeTimes)).padStart(10)}  ${fmtMs(Math.min(...alTimes)).padStart(12)}  ${fmtMs(Math.min(...ibmTimes)).padStart(10)}`);
-  console.log(`  ${"Max".padEnd(18)} ${fmtMs(Math.max(...axeTimes)).padStart(10)}  ${fmtMs(Math.max(...alTimes)).padStart(12)}  ${fmtMs(Math.max(...ibmTimes)).padStart(10)}`);
+  console.log(`  ${"".padEnd(18)} ${"axe-core".padStart(10)}  ${"@accesslint".padStart(12)}`);
+  console.log(`  ${"Mean".padEnd(18)} ${fmtMs(mean(axeTimes)).padStart(10)}  ${fmtMs(mean(alTimes)).padStart(12)}`);
+  console.log(`  ${"Median".padEnd(18)} ${fmtMs(median(axeTimes)).padStart(10)}  ${fmtMs(median(alTimes)).padStart(12)}`);
+  console.log(`  ${"P95".padEnd(18)} ${fmtMs(percentile(axeTimes, 95)).padStart(10)}  ${fmtMs(percentile(alTimes, 95)).padStart(12)}`);
+  console.log(`  ${"Min".padEnd(18)} ${fmtMs(Math.min(...axeTimes)).padStart(10)}  ${fmtMs(Math.min(...alTimes)).padStart(12)}`);
+  console.log(`  ${"Max".padEnd(18)} ${fmtMs(Math.max(...axeTimes)).padStart(10)}  ${fmtMs(Math.max(...alTimes)).padStart(12)}`);
 
   // Violation counts
   const axeViolTotal = ok.reduce((s, r) => s + r.axeViolationCount, 0);
   const alViolTotal = ok.reduce((s, r) => s + r.alViolationCount, 0);
-  const ibmViolTotal = ok.reduce((s, r) => s + r.ibmViolationCount, 0);
   console.log(`\n  Total violations found`);
   console.log(`    axe-core:        ${axeViolTotal.toLocaleString()}`);
   console.log(`    @accesslint:     ${alViolTotal.toLocaleString()}`);
-  console.log(`    IBM EA:          ${ibmViolTotal.toLocaleString()}`);
 
   // Concordance
   if (concordance.length > 0) {
     console.log("\n  Concordance by WCAG Criterion");
     console.log(
-      `  ${"Criterion".padEnd(12)} ${"All3".padStart(6)} ${"2of3".padStart(6)} ${"1only".padStart(6)} ${"None".padStart(6)} ${"Axe↔AL".padStart(8)} ${"Axe↔IBM".padStart(8)} ${"AL↔IBM".padStart(8)}`,
+      `  ${"Criterion".padEnd(12)} ${"Both".padStart(6)} ${"Axe".padStart(6)} ${"AL".padStart(6)} ${"None".padStart(6)} ${"n".padStart(6)} ${"Axe↔AL".padStart(8)} ${"PABAK".padStart(7)} ${"Depth".padStart(7)} ${"Jacc".padStart(6)} ${"95% CI".padStart(16)}`,
     );
-    console.log(`  ${"-".repeat(62)}`);
+    console.log(`  ${"-".repeat(90)}`);
 
-    // Sort by most common criteria first (allThree + twoOfThree + oneOnly desc)
+    // Sort by most common criteria first (both + axeOnly + alOnly desc)
     const sorted = concordance
       .slice()
-      .sort((a, b) => (b.allThree + b.twoOfThree + b.oneOnly) - (a.allThree + a.twoOfThree + a.oneOnly));
+      .sort((a, b) => (b.both + b.axeOnly + b.alOnly) - (a.both + a.axeOnly + a.alOnly));
 
     for (const c of sorted) {
+      const ci = `[${c.kappaCI[0].toFixed(2)},${c.kappaCI[1].toFixed(2)}]`;
       console.log(
-        `  ${c.criterion.padEnd(12)} ${String(c.allThree).padStart(6)} ${String(c.twoOfThree).padStart(6)} ${String(c.oneOnly).padStart(6)} ${String(c.noneFound).padStart(6)} ${c.axeAlKappa.toFixed(2).padStart(8)} ${c.axeIbmKappa.toFixed(2).padStart(8)} ${c.alIbmKappa.toFixed(2).padStart(8)}`,
+        `  ${c.criterion.padEnd(12)} ${String(c.both).padStart(6)} ${String(c.axeOnly).padStart(6)} ${String(c.alOnly).padStart(6)} ${String(c.neither).padStart(6)} ${String(c.sampleSize).padStart(6)} ${c.axeAlKappa.toFixed(2).padStart(8)} ${c.pabak.toFixed(2).padStart(7)} ${c.medianDepthRatio.toFixed(2).padStart(7)} ${c.medianJaccard.toFixed(2).padStart(6)} ${ci.padStart(16)}`,
       );
     }
 
-    const meanAxeAl = mean(concordance.map((c) => c.axeAlKappa));
-    const meanAxeIbm = mean(concordance.map((c) => c.axeIbmKappa));
-    const meanAlIbm = mean(concordance.map((c) => c.alIbmKappa));
-    console.log(`\n  Mean kappa:  Axe↔AL ${meanAxeAl.toFixed(2)}   Axe↔IBM ${meanAxeIbm.toFixed(2)}   AL↔IBM ${meanAlIbm.toFixed(2)}`);
+    const simpleMeanKappa = mean(concordance.map((c) => c.axeAlKappa));
+    // Weighted mean: weight each criterion's kappa by detection count
+    const totalWeight = concordance.reduce((s, c) => s + c.both + c.axeOnly + c.alOnly, 0);
+    const weightedMeanKappa = totalWeight > 0
+      ? concordance.reduce((s, c) => s + c.axeAlKappa * (c.both + c.axeOnly + c.alOnly), 0) / totalWeight
+      : 0;
+
+    console.log(`\n  Mean kappa (simple):   ${simpleMeanKappa.toFixed(2)}`);
+    console.log(`  Mean kappa (weighted): ${weightedMeanKappa.toFixed(2)}`);
   }
 
   console.log(`\n  Results written to: ${options.outputFile}`);

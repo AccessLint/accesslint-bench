@@ -5,11 +5,13 @@ import { extractAxeWcagCriteria, deduplicateOverlapping } from "./wcag-mapping.j
 
 const AXE_PATH = resolve("node_modules/axe-core/axe.min.js");
 const AL_PATH = resolve("node_modules/@accesslint/core/dist/index.iife.js");
-const IBM_PATH = resolve("node_modules/accessibility-checker-engine/ace.js");
 
 /**
  * Browser-side audit code injected via page.evaluate (as a string to
  * avoid tsx __name transforms).
+ *
+ * Randomizes axe/AL execution order per page. Collects per-criterion
+ * element sets and computes intersection/union counts in-browser.
  */
 function buildAuditCode(timeout: number): string {
   // Cap the in-page audit at 80% of the per-site timeout to leave room for navigation
@@ -36,114 +38,151 @@ function buildAuditCode(timeout: number): string {
     }
   }
 
-  var axeTimeMs = 0;
-  var axeViolations = [];
-  var axeStatus = "ok";
-  var axeError = null;
-  try {
-    var axeStart = performance.now();
-    var axeResults = await withTimeout(window.axe.run(document, { resultTypes: ["violations"] }), TIMEOUT);
-    axeTimeMs = performance.now() - axeStart;
-    axeViolations = axeResults.violations.map(function(v) {
-      return { id: v.id, tags: v.tags, nodeCount: v.nodes.length, impact: v.impact };
+  // --- axe-core audit function ---
+  function runAxe() {
+    var axeTimeMs = 0;
+    var axeViolationsRaw = [];
+    var axeStatus = "ok";
+    var axeError = null;
+    return withTimeout(window.axe.run(document, { resultTypes: ["violations"] }), TIMEOUT)
+      .then(function(axeResults) {
+        axeTimeMs = performance.now() - axeStart;
+        axeViolationsRaw = axeResults.violations;
+        return { axeTimeMs: axeTimeMs, axeViolationsRaw: axeViolationsRaw, axeStatus: "ok", axeError: null };
+      })
+      .catch(function(e) {
+        return { axeTimeMs: -1, axeViolationsRaw: [], axeStatus: "error", axeError: e instanceof Error ? e.message : String(e) };
+      });
+  }
+
+  // --- AL audit function ---
+  function runAl() {
+    var alTimeMs = 0;
+    var alViolationsRaw = [];
+    var alStatus = "ok";
+    var alError = null;
+    try {
+      var alStart = performance.now();
+      var alResultsRaw = window.AccessLintCore.runAudit(document);
+      alTimeMs = performance.now() - alStart;
+      alViolationsRaw = alResultsRaw.violations;
+      return Promise.resolve({ alTimeMs: alTimeMs, alViolationsRaw: alViolationsRaw, alStatus: "ok", alError: null });
+    } catch (e) {
+      return Promise.resolve({ alTimeMs: -1, alViolationsRaw: [], alStatus: "error", alError: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  // Randomize execution order
+  var axeFirst = Math.random() < 0.5;
+  var axeStart, axeResult, alResult;
+
+  if (axeFirst) {
+    axeStart = performance.now();
+    axeResult = await runAxe();
+    alResult = await withTimeout(
+      runAl(),
+      TIMEOUT
+    ).catch(function(e) {
+      return { alTimeMs: -1, alViolationsRaw: [], alStatus: "error", alError: e instanceof Error ? e.message : String(e) };
     });
-  } catch (e) {
-    axeTimeMs = -1;
-    axeStatus = "error";
-    axeError = e instanceof Error ? e.message : String(e);
+  } else {
+    alResult = await withTimeout(
+      runAl(),
+      TIMEOUT
+    ).catch(function(e) {
+      return { alTimeMs: -1, alViolationsRaw: [], alStatus: "error", alError: e instanceof Error ? e.message : String(e) };
+    });
+    axeStart = performance.now();
+    axeResult = await runAxe();
   }
 
-  var alTimeMs = 0;
-  var alViolations = [];
-  var alStatus = "ok";
-  var alError = null;
-  try {
-    var alStart = performance.now();
-    var alResults = window.AccessLintCore.runAudit(document);
-    alTimeMs = performance.now() - alStart;
-    var alViolMap = {};
-    for (var j = 0; j < alResults.violations.length; j++) {
-      var viol = alResults.violations[j];
-      if (!alViolMap[viol.ruleId]) {
-        alViolMap[viol.ruleId] = { ruleId: viol.ruleId, count: 0, impact: viol.impact };
-      }
-      alViolMap[viol.ruleId].count++;
+  // --- Process axe violations: keep element references for overlap ---
+  var axeViolations = [];
+  var axeElementsByCriterion = {};
+  var wcagRegex = /^wcag(\\d)(\\d)(\\d+)$/;
+
+  for (var ai = 0; ai < axeResult.axeViolationsRaw.length; ai++) {
+    var av = axeResult.axeViolationsRaw[ai];
+    axeViolations.push({ id: av.id, tags: av.tags, nodeCount: av.nodes.length, impact: av.impact });
+
+    // Parse WCAG criteria from tags
+    var axeCriteria = [];
+    for (var ti = 0; ti < av.tags.length; ti++) {
+      var m = av.tags[ti].match(wcagRegex);
+      if (m) axeCriteria.push(m[1] + "." + m[2] + "." + m[3]);
     }
-    alViolations = Object.values(alViolMap);
-  } catch (e) {
-    alTimeMs = -1;
-    alStatus = "error";
-    alError = e instanceof Error ? e.message : String(e);
+
+    // Resolve each node to a DOM element and group by criterion
+    for (var ni = 0; ni < av.nodes.length; ni++) {
+      var target = av.nodes[ni].target;
+      var el = null;
+      if (target && target.length > 0) {
+        try { el = document.querySelector(target[target.length - 1]); } catch(e) {}
+      }
+      if (!el) continue;
+      for (var ci = 0; ci < axeCriteria.length; ci++) {
+        var crit = axeCriteria[ci];
+        if (!axeElementsByCriterion[crit]) axeElementsByCriterion[crit] = new Set();
+        axeElementsByCriterion[crit].add(el);
+      }
+    }
   }
 
-  var ibmTimeMs = 0;
-  var ibmViolations = [];
-  var ibmStatus = "ok";
-  var ibmError = null;
-  var ibmRuleWcagMap = {};
-  try {
-    var checker = new ace.Checker();
+  // --- Process AL violations: keep element references for overlap ---
+  var alViolMap = {};
+  var alElementsByCriterion = {};
 
-    var guidelines = checker.getGuidelines();
-    for (var gi = 0; gi < guidelines.length; gi++) {
-      if (guidelines[gi].id !== "WCAG_2_2") continue;
-      var checkpoints = guidelines[gi].checkpoints;
-      for (var ci = 0; ci < checkpoints.length; ci++) {
-        var cp = checkpoints[ci];
-        var cpNum = cp.num;
-        if (!cpNum) continue;
-        var cpRules = cp.rules || [];
-        for (var ri = 0; ri < cpRules.length; ri++) {
-          var rId = cpRules[ri].id;
-          if (!ibmRuleWcagMap[rId]) ibmRuleWcagMap[rId] = [];
-          if (ibmRuleWcagMap[rId].indexOf(cpNum) === -1) {
-            ibmRuleWcagMap[rId].push(cpNum);
-          }
-        }
-      }
+  for (var j = 0; j < alResult.alViolationsRaw.length; j++) {
+    var viol = alResult.alViolationsRaw[j];
+    if (!alViolMap[viol.ruleId]) {
+      alViolMap[viol.ruleId] = { ruleId: viol.ruleId, count: 0, impact: viol.impact };
     }
+    alViolMap[viol.ruleId].count++;
 
-    var origLog = console.log;
-    console.log = function() {};
-    var ibmStart = performance.now();
-    var ibmReport = await withTimeout(checker.check(document, ["WCAG_2_2"]), TIMEOUT);
-    ibmTimeMs = performance.now() - ibmStart;
-    console.log = origLog;
-
-    var ibmViolMap = {};
-    for (var vi = 0; vi < ibmReport.results.length; vi++) {
-      var issue = ibmReport.results[vi];
-      if (issue.value[0] === "VIOLATION" && issue.value[1] === "FAIL") {
-        if (!ibmViolMap[issue.ruleId]) {
-          ibmViolMap[issue.ruleId] = { ruleId: issue.ruleId, count: 0 };
-        }
-        ibmViolMap[issue.ruleId].count++;
-      }
+    // Resolve selector to DOM element and group by criterion
+    var alEl = null;
+    if (viol.selector) {
+      try { alEl = document.querySelector(viol.selector); } catch(e) {}
     }
-    ibmViolations = Object.values(ibmViolMap);
-  } catch (e) {
-    console.log = origLog || console.log;
-    ibmTimeMs = -1;
-    ibmStatus = "error";
-    ibmError = e instanceof Error ? e.message : String(e);
+    var alCriteria = alRuleWcagMap[viol.ruleId] || [];
+    for (var aci = 0; aci < alCriteria.length; aci++) {
+      var ac = alCriteria[aci];
+      if (!alElementsByCriterion[ac]) alElementsByCriterion[ac] = new Set();
+      if (alEl) alElementsByCriterion[ac].add(alEl);
+    }
+  }
+  var alViolations = Object.values(alViolMap);
+
+  // --- Compute element-level overlap per criterion ---
+  var elementOverlap = {};
+  var allOverlapCriteria = {};
+  for (var k in axeElementsByCriterion) allOverlapCriteria[k] = true;
+  for (var k in alElementsByCriterion) allOverlapCriteria[k] = true;
+
+  for (var oc in allOverlapCriteria) {
+    var axeSet = axeElementsByCriterion[oc] || new Set();
+    var alSet = alElementsByCriterion[oc] || new Set();
+    if (axeSet.size === 0 && alSet.size === 0) continue;
+    var intersection = 0;
+    alSet.forEach(function(el) { if (axeSet.has(el)) intersection++; });
+    elementOverlap[oc] = {
+      intersection: intersection,
+      union: axeSet.size + alSet.size - intersection
+    };
   }
 
   return {
     domElementCount: domElementCount,
-    axeTimeMs: axeTimeMs,
-    alTimeMs: alTimeMs,
-    ibmTimeMs: ibmTimeMs,
-    axeStatus: axeStatus,
-    alStatus: alStatus,
-    ibmStatus: ibmStatus,
-    axeError: axeError,
-    alError: alError,
-    ibmError: ibmError,
+    axeTimeMs: axeResult.axeTimeMs,
+    alTimeMs: alResult.alTimeMs,
+    axeStatus: axeResult.axeStatus,
+    alStatus: alResult.alStatus,
+    axeError: axeResult.axeError,
+    alError: alResult.alError,
     axeViolations: axeViolations,
     alViolations: alViolations,
-    ibmViolations: ibmViolations,
     alRuleWcagMap: alRuleWcagMap,
-    ibmRuleWcagMap: ibmRuleWcagMap
+    elementOverlap: elementOverlap
   };
 })()`;
 }
@@ -154,7 +193,6 @@ function buildCriteriaDetail(
 ): {
   axeWcag: string[];
   alWcag: string[];
-  ibmWcag: string[];
   detail: CriterionPageResult[];
 } {
   const axeWcagSet = new Set<string>();
@@ -185,43 +223,30 @@ function buildCriteriaDetail(
     }
   }
 
-  const ibmWcagSet = new Set<string>();
-  const ibmCriteriaToRules = new Map<string, string[]>();
-  const ibmCriteriaNodeCount = new Map<string, number>();
-  for (const v of raw.ibmViolations) {
-    const criteria = raw.ibmRuleWcagMap[v.ruleId] ?? [];
-    for (const c of criteria) {
-      ibmWcagSet.add(c);
-      const existing = ibmCriteriaToRules.get(c) ?? [];
-      existing.push(v.ruleId);
-      ibmCriteriaToRules.set(c, existing);
-      ibmCriteriaNodeCount.set(c, (ibmCriteriaNodeCount.get(c) ?? 0) + v.count);
-    }
-  }
-
-  const allCriteria = new Set([...axeWcagSet, ...alWcagSet, ...ibmWcagSet]);
-  const detail: CriterionPageResult[] = [...allCriteria].sort().map((criterion) => ({
-    criterion,
-    axeFound: axeWcagSet.has(criterion),
-    alFound: alWcagSet.has(criterion),
-    ibmFound: ibmWcagSet.has(criterion),
-    axeRuleIds: axeCriteriaToRules.get(criterion) ?? [],
-    alRuleIds: alCriteriaToRules.get(criterion) ?? [],
-    ibmRuleIds: ibmCriteriaToRules.get(criterion) ?? [],
-    axeNodeCount: axeCriteriaNodeCount.get(criterion) ?? 0,
-    alNodeCount: alCriteriaNodeCount.get(criterion) ?? 0,
-    ibmNodeCount: ibmCriteriaNodeCount.get(criterion) ?? 0,
-  }));
+  const allCriteria = new Set([...axeWcagSet, ...alWcagSet]);
+  const detail: CriterionPageResult[] = [...allCriteria].sort().map((criterion) => {
+    const overlap = raw.elementOverlap[criterion];
+    return {
+      criterion,
+      axeFound: axeWcagSet.has(criterion),
+      alFound: alWcagSet.has(criterion),
+      axeRuleIds: axeCriteriaToRules.get(criterion) ?? [],
+      alRuleIds: alCriteriaToRules.get(criterion) ?? [],
+      axeNodeCount: axeCriteriaNodeCount.get(criterion) ?? 0,
+      alNodeCount: alCriteriaNodeCount.get(criterion) ?? 0,
+      elementIntersection: overlap?.intersection ?? 0,
+      elementUnion: overlap?.union ?? 0,
+    };
+  });
 
   return {
     axeWcag: [...axeWcagSet].sort(),
     alWcag: [...alWcagSet].sort(),
-    ibmWcag: [...ibmWcagSet].sort(),
     detail,
   };
 }
 
-/** Audit a single site with axe-core, @accesslint/core, and IBM Equal Access. */
+/** Audit a single site with axe-core and @accesslint/core. */
 export async function auditSite(
   context: BrowserContext,
   origin: string,
@@ -231,7 +256,7 @@ export async function auditSite(
   const page = await context.newPage();
   page.setDefaultTimeout(timeout);
 
-  // Hard deadline: if anything hangs beyond 2× the per-site timeout, force-close the page.
+  // Hard deadline: if anything hangs beyond 2x the per-site timeout, force-close the page.
   const hardTimeout = timeout * 2;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, reject) => {
@@ -271,14 +296,12 @@ export async function auditSite(
 
       await page.addScriptTag({ path: AXE_PATH });
       await page.addScriptTag({ path: AL_PATH });
-      await page.addScriptTag({ path: IBM_PATH });
 
       const raw: BrowserAuditResult = await page.evaluate(buildAuditCode(timeout));
-      const { axeWcag, alWcag, ibmWcag, detail } = buildCriteriaDetail(raw);
+      const { axeWcag, alWcag, detail } = buildCriteriaDetail(raw);
 
       const axeViolationCount = raw.axeViolations.reduce((sum, v) => sum + v.nodeCount, 0);
       const alViolationCount = raw.alViolations.reduce((sum, v) => sum + v.count, 0);
-      const ibmViolationCount = raw.ibmViolations.reduce((sum, v) => sum + v.count, 0);
 
       return {
         origin,
@@ -287,19 +310,14 @@ export async function auditSite(
         domElementCount: raw.domElementCount,
         axeTimeMs: raw.axeTimeMs,
         alTimeMs: raw.alTimeMs,
-        ibmTimeMs: raw.ibmTimeMs,
         axeStatus: raw.axeStatus,
         alStatus: raw.alStatus,
-        ibmStatus: raw.ibmStatus,
         axeError: raw.axeError,
         alError: raw.alError,
-        ibmError: raw.ibmError,
         axeViolationCount,
         alViolationCount,
-        ibmViolationCount,
         axeWcagCriteria: axeWcag,
         alWcagCriteria: alWcag,
-        ibmWcagCriteria: ibmWcag,
         criteriaDetail: detail,
         timestamp: new Date().toISOString(),
       };
@@ -314,19 +332,14 @@ export async function auditSite(
       domElementCount: 0,
       axeTimeMs: 0,
       alTimeMs: 0,
-      ibmTimeMs: 0,
       axeStatus: "error",
       alStatus: "error",
-      ibmStatus: "error",
       axeError: null,
       alError: null,
-      ibmError: null,
       axeViolationCount: 0,
       alViolationCount: 0,
-      ibmViolationCount: 0,
       axeWcagCriteria: [],
       alWcagCriteria: [],
-      ibmWcagCriteria: [],
       criteriaDetail: [],
       timestamp: new Date().toISOString(),
     };

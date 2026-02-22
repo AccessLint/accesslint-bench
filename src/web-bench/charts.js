@@ -13,7 +13,6 @@
   var COLORS = {
     axe: "#555555",
     al: "#0055cc",
-    ibm: "#be95ff",
   };
 
   // Shared defaults
@@ -23,7 +22,7 @@
     chart: {
       style: { fontFamily: "system-ui, -apple-system, sans-serif" },
     },
-    colors: [COLORS.axe, COLORS.al, COLORS.ibm],
+    colors: [COLORS.axe, COLORS.al],
   });
 
   function readData(id) {
@@ -45,7 +44,7 @@
     if (!data || !container) return;
 
     Highcharts.chart(container, {
-      chart: { type: "bar", height: 220 },
+      chart: { type: "bar", height: 180 },
       title: { text: null },
       xAxis: {
         categories: data.categories,
@@ -101,78 +100,52 @@
       },
       legend: { reversed: true },
       series: [
-        { name: "Both confirm", data: data.bothConfirm, color: "#1a7f37" },
         { name: "axe confirms", data: data.axeConfirms, color: COLORS.axe },
-        { name: "IBM confirms", data: data.ibmConfirms, color: COLORS.ibm },
         { name: "Unique", data: data.alUnique, color: "#bf8700" },
       ],
       accessibility: {
         description:
-          "Stacked bar chart showing @accesslint/core detections and confirmation by other tools per WCAG criterion.",
+          "Stacked bar chart showing @accesslint/core detections and confirmation by axe-core per WCAG criterion.",
       },
     });
   }
 
-  // Heatmap: 3×3 pairwise kappa matrix
+  // Kappa display: simple + weighted mean
   function renderKappaChart() {
     var data = readData("kappa");
     var container = document.getElementById("chart-kappa");
     if (!data || !container) return;
 
     Highcharts.chart(container, {
-      chart: { type: "heatmap", height: 300 },
+      chart: { type: "bar", height: 180 },
       title: { text: null },
       xAxis: {
-        categories: data.labels,
-        opposite: true,
+        categories: ["Simple mean", "Weighted mean"],
+        labels: { style: { fontSize: "14px" } },
       },
       yAxis: {
-        categories: data.labels,
-        title: null,
-        reversed: true,
-      },
-      colorAxis: {
+        title: { text: "Cohen\u2019s \u03BA" },
         min: -0.2,
         max: 1,
-        stops: [
-          [0, "#fee2e2"],
-          [0.3, "#fef9c3"],
-          [0.6, "#bbf7d0"],
-          [1, "#166534"],
+        plotBands: [
+          { from: 0.6, to: 1, color: "rgba(26, 127, 55, 0.08)", label: { text: "Substantial", style: { color: "#1a7f37" } } },
         ],
       },
       tooltip: {
-        formatter: function () {
-          return (
-            "<b>" +
-            this.series.xAxis.categories[this.point.x] +
-            " ↔ " +
-            this.series.yAxis.categories[this.point.y] +
-            "</b><br>κ = " +
-            Highcharts.numberFormat(this.point.value, 2)
-          );
-        },
+        pointFormat: "\u03BA = {point.y:.2f}",
       },
+      legend: { enabled: false },
       series: [
         {
-          name: "Cohen's κ",
-          data: data.data,
-          dataLabels: {
-            enabled: true,
-            format: "{point.value:.2f}",
-            style: { fontSize: "13px", fontWeight: "bold", textOutline: "none" },
-          },
-          borderWidth: 1,
-          borderColor: "#ffffff",
+          name: "Axe \u2194 AL",
+          data: [
+            { y: data.simpleMean, color: COLORS.al },
+            { y: data.weightedMean, color: COLORS.al },
+          ],
         },
       ],
-      legend: {
-        align: "right",
-        layout: "vertical",
-        verticalAlign: "middle",
-      },
       accessibility: {
-        description: "Heatmap of pairwise Cohen's kappa agreement between tools.",
+        description: "Bar chart showing mean Cohen's kappa between axe-core and @accesslint/core.",
       },
     });
   }
@@ -202,9 +175,9 @@
         {
           name: "Sites",
           data: [
-            { name: "All three", y: data.allThree, color: "#1a7f37" },
-            { name: "Two of three", y: data.twoOfThree, color: "#0055cc" },
-            { name: "One only", y: data.oneOnly, color: "#bf8700" },
+            { name: "Both", y: data.both, color: "#1a7f37" },
+            { name: "axe-core only", y: data.axeOnly, color: COLORS.axe },
+            { name: "@accesslint/core only", y: data.alOnly, color: COLORS.al },
           ].filter(function (d) {
             return d.y > 0;
           }),
@@ -224,8 +197,8 @@
 
     var allCategories = [];
     var seen = {};
-    var tools = ["axe", "al", "ibm"];
-    var toolLabels = { axe: "axe-core", al: "@accesslint/core", ibm: "IBM EA" };
+    var tools = ["axe", "al"];
+    var toolLabels = { axe: "axe-core", al: "@accesslint/core" };
 
     tools.forEach(function (t) {
       (data[t] || []).forEach(function (r) {

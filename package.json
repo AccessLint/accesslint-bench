@@ -9,8 +9,7 @@
     "generate:index": "tsx src/web-bench/generate-index.ts"
   },
   "dependencies": {
-    "@accesslint/core": "^0.6.6",
-    "accessibility-checker-engine": "^4.0.12",
+    "@accesslint/core": "0.8.2",
     "axe-core": "latest"
   },
   "devDependencies": {
