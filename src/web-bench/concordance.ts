@@ -58,7 +58,7 @@ function bootstrapKappaCI(
 /**
  * Calculate per-criterion concordance across all successful site results.
  *
- * For each WCAG criterion, counts how the two tools (axe, AL) agree,
+ * For each WCAG criterion, counts how the two tools (axe, @accesslint/core) agree,
  * then computes Cohen's kappa, PABAK, depth ratio, and Jaccard.
  * Pages where either tool errored are excluded from the kappa calculation.
  */

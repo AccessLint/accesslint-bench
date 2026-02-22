@@ -12,7 +12,7 @@
 
   var COLORS = {
     axe: "#555555",
-    al: "#0055cc",
+    accesslint: "#0055cc",
   };
 
   // Shared defaults
@@ -22,7 +22,7 @@
     chart: {
       style: { fontFamily: "system-ui, -apple-system, sans-serif" },
     },
-    colors: [COLORS.axe, COLORS.al],
+    colors: [COLORS.axe, COLORS.accesslint],
   });
 
   function readData(id) {
@@ -101,7 +101,7 @@
       legend: { reversed: true },
       series: [
         { name: "axe confirms", data: data.axeConfirms, color: COLORS.axe },
-        { name: "Unique", data: data.alUnique, color: "#bf8700" },
+        { name: "Unique", data: data.accesslintUnique, color: "#bf8700" },
       ],
       accessibility: {
         description:
@@ -137,10 +137,10 @@
       legend: { enabled: false },
       series: [
         {
-          name: "Axe \u2194 AL",
+          name: "axe \u2194 accesslint",
           data: [
-            { y: data.simpleMean, color: COLORS.al },
-            { y: data.weightedMean, color: COLORS.al },
+            { y: data.simpleMean, color: COLORS.accesslint },
+            { y: data.weightedMean, color: COLORS.accesslint },
           ],
         },
       ],
@@ -177,7 +177,7 @@
           data: [
             { name: "Both", y: data.both, color: "#1a7f37" },
             { name: "axe-core only", y: data.axeOnly, color: COLORS.axe },
-            { name: "@accesslint/core only", y: data.alOnly, color: COLORS.al },
+            { name: "@accesslint/core only", y: data.accesslintOnly, color: COLORS.accesslint },
           ].filter(function (d) {
             return d.y > 0;
           }),
@@ -197,8 +197,8 @@
 
     var allCategories = [];
     var seen = {};
-    var tools = ["axe", "al"];
-    var toolLabels = { axe: "axe-core", al: "@accesslint/core" };
+    var tools = ["axe", "accesslint"];
+    var toolLabels = { axe: "axe-core", accesslint: "@accesslint/core" };
 
     tools.forEach(function (t) {
       (data[t] || []).forEach(function (r) {

@@ -101,7 +101,7 @@ export function printSummary(
   if (concordance.length > 0) {
     console.log("\n  Concordance by WCAG Criterion");
     console.log(
-      `  ${"Criterion".padEnd(12)} ${"Both".padStart(6)} ${"Axe".padStart(6)} ${"AL".padStart(6)} ${"None".padStart(6)} ${"n".padStart(6)} ${"Axe↔AL".padStart(8)} ${"PABAK".padStart(7)} ${"Depth".padStart(7)} ${"Jacc".padStart(6)} ${"95% CI".padStart(16)}`,
+      `  ${"Criterion".padEnd(12)} ${"Both".padStart(6)} ${"Axe".padStart(6)} ${"accesslint".padStart(10)} ${"None".padStart(6)} ${"n".padStart(6)} ${"Axe↔accesslint".padStart(14)} ${"PABAK".padStart(7)} ${"Depth".padStart(7)} ${"Jacc".padStart(6)} ${"95% CI".padStart(16)}`,
     );
     console.log(`  ${"-".repeat(90)}`);
 
@@ -113,7 +113,7 @@ export function printSummary(
     for (const c of sorted) {
       const ci = `[${c.kappaCI[0].toFixed(2)},${c.kappaCI[1].toFixed(2)}]`;
       console.log(
-        `  ${c.criterion.padEnd(12)} ${String(c.both).padStart(6)} ${String(c.axeOnly).padStart(6)} ${String(c.alOnly).padStart(6)} ${String(c.neither).padStart(6)} ${String(c.sampleSize).padStart(6)} ${c.axeAlKappa.toFixed(2).padStart(8)} ${c.pabak.toFixed(2).padStart(7)} ${c.medianDepthRatio.toFixed(2).padStart(7)} ${c.medianJaccard.toFixed(2).padStart(6)} ${ci.padStart(16)}`,
+        `  ${c.criterion.padEnd(12)} ${String(c.both).padStart(6)} ${String(c.axeOnly).padStart(6)} ${String(c.alOnly).padStart(10)} ${String(c.neither).padStart(6)} ${String(c.sampleSize).padStart(6)} ${c.axeAlKappa.toFixed(2).padStart(14)} ${c.pabak.toFixed(2).padStart(7)} ${c.medianDepthRatio.toFixed(2).padStart(7)} ${c.medianJaccard.toFixed(2).padStart(6)} ${ci.padStart(16)}`,
       );
     }
 

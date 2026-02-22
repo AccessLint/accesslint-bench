@@ -43,35 +43,35 @@ function safeMedian(values: (number | undefined | null)[]): number | null {
   return valid.length > 0 ? Math.round(median(valid)) : null;
 }
 
-// --- AL coverage ---
+// --- @accesslint/core coverage ---
 
-interface AlCoverageStat {
+interface AccesslintCoverageStat {
   criterion: string;
   name: string;
-  alDetects: number;
+  accesslintDetects: number;
   confirmedByAxe: number;
-  alUnique: number;
+  accesslintUnique: number;
 }
 
-function computeAlCoverage(ok: SiteResult[], criteria: Record<string, string>): AlCoverageStat[] {
-  const stats: AlCoverageStat[] = [];
+function computeAccesslintCoverage(ok: SiteResult[], criteria: Record<string, string>): AccesslintCoverageStat[] {
+  const stats: AccesslintCoverageStat[] = [];
 
   for (const [criterion, name] of Object.entries(criteria)) {
-    let alDetects = 0, confirmedByAxe = 0, alUnique = 0;
+    let accesslintDetects = 0, confirmedByAxe = 0, accesslintUnique = 0;
 
     for (const r of ok) {
       const alHas = r.alWcagCriteria.includes(criterion);
       if (!alHas) continue;
-      alDetects++;
+      accesslintDetects++;
       const axeHas = r.axeWcagCriteria.includes(criterion);
       if (axeHas) confirmedByAxe++;
-      else alUnique++;
+      else accesslintUnique++;
     }
 
-    stats.push({ criterion, name, alDetects, confirmedByAxe, alUnique });
+    stats.push({ criterion, name, accesslintDetects, confirmedByAxe, accesslintUnique });
   }
 
-  return stats.sort((a, b) => b.alDetects - a.alDetects);
+  return stats.sort((a, b) => b.accesslintDetects - a.accesslintDetects);
 }
 
 // --- Speed chart data ---
@@ -93,11 +93,11 @@ function buildSpeedChartData(ok: SiteResult[]) {
 
 // --- Concordance chart data ---
 
-function buildConcordanceChartData(stats: AlCoverageStat[]) {
+function buildConcordanceChartData(stats: AccesslintCoverageStat[]) {
   return {
     categories: stats.map((s) => `${s.criterion} ${s.name}`),
     axeConfirms: stats.map((s) => s.confirmedByAxe),
-    alUnique: stats.map((s) => s.alUnique),
+    accesslintUnique: stats.map((s) => s.accesslintUnique),
   };
 }
 
@@ -188,7 +188,7 @@ console.log(`Loaded ${results.length} results (${ok.length} OK)`);
 const CRITERIA = selectTopCriteria(ok);
 console.log(`Auto-selected ${Object.keys(CRITERIA).length} criteria by detection count`);
 
-const alCoverage = computeAlCoverage(ok, CRITERIA);
+const accesslintCoverage = computeAccesslintCoverage(ok, CRITERIA);
 const concordances = calculateConcordance(results);
 const concordanceMap = new Map(concordances.map((c) => [c.criterion, c]));
 
@@ -197,9 +197,9 @@ const axeMedian = safeMedian(ok.map((r) => r.axeTimeMs));
 const alMedian = safeMedian(ok.map((r) => r.alTimeMs));
 const axeSpeedup = axeMedian && alMedian ? Math.round(axeMedian / alMedian) : null;
 
-const totalAlDetects = alCoverage.reduce((s, c) => s + c.alDetects, 0);
-const totalConfirmed = alCoverage.reduce((s, c) => s + c.confirmedByAxe, 0);
-const confirmationPct = totalAlDetects > 0 ? Math.round((totalConfirmed / totalAlDetects) * 100) : 0;
+const totalAccesslintDetects = accesslintCoverage.reduce((s, c) => s + c.accesslintDetects, 0);
+const totalConfirmed = accesslintCoverage.reduce((s, c) => s + c.confirmedByAxe, 0);
+const confirmationPct = totalAccesslintDetects > 0 ? Math.round((totalConfirmed / totalAccesslintDetects) * 100) : 0;
 
 const dateIso = new Date().toISOString().slice(0, 10);
 
@@ -212,9 +212,23 @@ const summary = {
   axeSpeedup,
   confirmationPct,
   dateIso,
-  coverage: alCoverage,
+  coverage: accesslintCoverage,
+  concordance: concordances.map((c) => ({
+    criterion: c.criterion,
+    name: CRITERIA[c.criterion] ?? c.criterion,
+    both: c.both,
+    axeOnly: c.axeOnly,
+    accesslintOnly: c.alOnly,
+    neither: c.neither,
+    sampleSize: c.sampleSize,
+    kappa: c.axeAlKappa,
+    pabak: c.pabak,
+    medianDepthRatio: c.medianDepthRatio,
+    medianJaccard: c.medianJaccard,
+    kappaCI: c.kappaCI,
+  })),
   speedChart: buildSpeedChartData(ok),
-  concordanceChart: buildConcordanceChartData(alCoverage),
+  concordanceChart: buildConcordanceChartData(accesslintCoverage),
 };
 
 mkdirSync(resolve(outputDir), { recursive: true });
@@ -270,17 +284,17 @@ for (const [criterion, name] of Object.entries(CRITERIA)) {
     concordance: {
       both: bothSites.length,
       axeOnly: axeOnly.length,
-      alOnly: alOnly.length,
+      accesslintOnly: alOnly.length,
       medianJaccard: conc?.medianJaccard ?? 0,
     },
     rules: {
       axe: axeRules.slice(0, 10),
-      al: alRules.slice(0, 10),
+      accesslint: alRules.slice(0, 10),
     },
     examples: {
       both: { total: bothSites.length, items: selectExamples(bothSites, 10).map(toExample) },
       axeOnly: { total: axeOnly.length, items: selectExamples(axeOnly, 10).map(toExample) },
-      alOnly: { total: alOnly.length, items: selectExamples(alOnly, 10).map(toExample) },
+      accesslintOnly: { total: alOnly.length, items: selectExamples(alOnly, 10).map(toExample) },
     },
   };
 

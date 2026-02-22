@@ -10,7 +10,7 @@ const AL_PATH = resolve("node_modules/@accesslint/core/dist/index.iife.js");
  * Browser-side audit code injected via page.evaluate (as a string to
  * avoid tsx __name transforms).
  *
- * Randomizes axe/AL execution order per page. Collects per-criterion
+ * Randomizes axe/@accesslint/core execution order per page. Collects per-criterion
  * element sets and computes intersection/union counts in-browser.
  */
 function buildAuditCode(timeout: number): string {
@@ -55,7 +55,7 @@ function buildAuditCode(timeout: number): string {
       });
   }
 
-  // --- AL audit function ---
+  // --- @accesslint/core audit function ---
   function runAl() {
     var alTimeMs = 0;
     var alViolationsRaw = [];
@@ -128,7 +128,7 @@ function buildAuditCode(timeout: number): string {
     }
   }
 
-  // --- Process AL violations: keep element references for overlap ---
+  // --- Process @accesslint/core violations: keep element references for overlap ---
   var alViolMap = {};
   var alElementsByCriterion = {};
 

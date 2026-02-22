@@ -197,7 +197,7 @@ function buildRuleChartData(
 ) {
   return {
     axe: axeRules.slice(0, topN),
-    al: alRules.slice(0, topN),
+    accesslint: alRules.slice(0, topN),
   };
 }
 
@@ -222,7 +222,7 @@ function renderPage(
   const agreementData = JSON.stringify({
     both: concordance.both,
     axeOnly: concordance.axeOnly,
-    alOnly: concordance.alOnly,
+    accesslintOnly: concordance.alOnly,
   });
 
   const rulesData = JSON.stringify(buildRuleChartData(axeRules, alRules));

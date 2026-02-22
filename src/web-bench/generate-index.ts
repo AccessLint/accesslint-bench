@@ -61,39 +61,39 @@ function buildSpeedChartData(ok: SiteResult[]) {
   };
 }
 
-interface AlCoverageStat {
+interface AccesslintCoverageStat {
   criterion: string;
-  alDetects: number;
+  accesslintDetects: number;
   confirmedByAxe: number;
-  alUnique: number;
+  accesslintUnique: number;
 }
 
-function computeAlCoverage(ok: SiteResult[], criteria: Record<string, string>): AlCoverageStat[] {
-  const stats: AlCoverageStat[] = [];
+function computeAccesslintCoverage(ok: SiteResult[], criteria: Record<string, string>): AccesslintCoverageStat[] {
+  const stats: AccesslintCoverageStat[] = [];
 
   for (const criterion of Object.keys(criteria)) {
-    let alDetects = 0, confirmedByAxe = 0, alUnique = 0;
+    let accesslintDetects = 0, confirmedByAxe = 0, accesslintUnique = 0;
 
     for (const r of ok) {
       const alHas = r.alWcagCriteria.includes(criterion);
       if (!alHas) continue;
-      alDetects++;
+      accesslintDetects++;
       const axeHas = r.axeWcagCriteria.includes(criterion);
       if (axeHas) confirmedByAxe++;
-      else alUnique++;
+      else accesslintUnique++;
     }
 
-    stats.push({ criterion, alDetects, confirmedByAxe, alUnique });
+    stats.push({ criterion, accesslintDetects, confirmedByAxe, accesslintUnique });
   }
 
-  return stats.sort((a, b) => b.alDetects - a.alDetects);
+  return stats.sort((a, b) => b.accesslintDetects - a.accesslintDetects);
 }
 
-function buildConcordanceChartData(stats: AlCoverageStat[], criteria: Record<string, string>) {
+function buildConcordanceChartData(stats: AccesslintCoverageStat[], criteria: Record<string, string>) {
   return {
     categories: stats.map((s) => `${s.criterion} ${criteria[s.criterion] ?? ""}`),
     axeConfirms: stats.map((s) => s.confirmedByAxe),
-    alUnique: stats.map((s) => s.alUnique),
+    accesslintUnique: stats.map((s) => s.accesslintUnique),
   };
 }
 
@@ -110,22 +110,22 @@ function buildKappaChartData(concordances: CriterionConcordance[]) {
   return { simpleMean: +axeAlMean.toFixed(2), weightedMean: +weightedMean.toFixed(2) };
 }
 
-function renderCoverageRow(s: AlCoverageStat, concordance: CriterionConcordance | undefined, criteria: Record<string, string>): string {
+function renderCoverageRow(s: AccesslintCoverageStat, concordance: CriterionConcordance | undefined, criteria: Record<string, string>): string {
   const name = criteria[s.criterion] ?? WCAG_CRITERIA_NAMES[s.criterion];
   if (!name) return "";
   const jaccard = concordance ? concordance.medianJaccard.toFixed(2) : "&mdash;";
   return `          <tr>
             <td><a href="/benches/criteria/${s.criterion}/">${s.criterion} ${escapeHtml(name)}</a></td>
-            <td>${s.alDetects.toLocaleString()}</td>
+            <td>${s.accesslintDetects.toLocaleString()}</td>
             <td>${s.confirmedByAxe.toLocaleString()}</td>
-            <td>${s.alUnique.toLocaleString()}</td>
+            <td>${s.accesslintUnique.toLocaleString()}</td>
             <td>${jaccard}</td>
           </tr>`;
 }
 
 function renderPage(
   ok: SiteResult[],
-  alCoverage: AlCoverageStat[],
+  accesslintCoverage: AccesslintCoverageStat[],
   concordances: CriterionConcordance[],
   totalSites: number,
   criteria: Record<string, string>,
@@ -135,15 +135,15 @@ function renderPage(
   const axeSpeedup = axeMedian > 0 ? Math.round(axeMedian / alMedian) : 1;
 
   // Confirmation rate
-  const totalAlDetects = alCoverage.reduce((s, c) => s + c.alDetects, 0);
-  const totalConfirmed = alCoverage.reduce((s, c) => s + c.alDetects - c.alUnique, 0);
-  const confirmationPct = totalAlDetects > 0 ? Math.round((totalConfirmed / totalAlDetects) * 100) : 0;
+  const totalAccesslintDetects = accesslintCoverage.reduce((s, c) => s + c.accesslintDetects, 0);
+  const totalConfirmed = accesslintCoverage.reduce((s, c) => s + c.accesslintDetects - c.accesslintUnique, 0);
+  const confirmationPct = totalAccesslintDetects > 0 ? Math.round((totalConfirmed / totalAccesslintDetects) * 100) : 0;
 
   const concordanceMap = new Map(concordances.map((c) => [c.criterion, c]));
-  const coverageRows = alCoverage.map((s) => renderCoverageRow(s, concordanceMap.get(s.criterion), criteria)).filter(Boolean).join("\n");
+  const coverageRows = accesslintCoverage.map((s) => renderCoverageRow(s, concordanceMap.get(s.criterion), criteria)).filter(Boolean).join("\n");
 
   const speedData = JSON.stringify(buildSpeedChartData(ok));
-  const concordanceData = JSON.stringify(buildConcordanceChartData(alCoverage, criteria));
+  const concordanceData = JSON.stringify(buildConcordanceChartData(accesslintCoverage, criteria));
   const kappaData = JSON.stringify(buildKappaChartData(concordances));
 
   const dateIso = new Date().toISOString().slice(0, 10);
@@ -260,10 +260,10 @@ const CRITERIA = selectTopCriteria(ok);
 console.log(`Auto-selected ${Object.keys(CRITERIA).length} criteria by detection count`);
 
 const concordances = calculateConcordance(results);
-const alCoverage = computeAlCoverage(ok, CRITERIA);
+const accesslintCoverage = computeAccesslintCoverage(ok, CRITERIA);
 
 mkdirSync(resolve(outputDir), { recursive: true });
-const html = renderPage(ok, alCoverage, concordances, totalSites, CRITERIA);
+const html = renderPage(ok, accesslintCoverage, concordances, totalSites, CRITERIA);
 writeFileSync(resolve(outputDir, "index.html"), html);
 console.log(`  index.html → ${outputDir}/index.html`);
 console.log("Done.");
