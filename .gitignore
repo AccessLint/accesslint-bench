@@ -1,5 +1,8 @@
 node_modules/
 dist/
 results/
+bench-data/
+screenshots/
+.claude/
 docs/src/.observablehq/cache/
 docs/dist/
