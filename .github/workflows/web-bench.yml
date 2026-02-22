@@ -91,10 +91,11 @@ jobs:
           name: bench-data
           path: bench-data/
 
-      - name: Dispatch to core.accesslint.com
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.CORE_DEPLOY_TOKEN }}
-          repository: accesslint/core.accesslint.com
-          event-type: bench-data-ready
-          client-payload: '{"run_id": "${{ github.run_id }}"}'
+      # TODO: re-enable once bench data is validated
+      # - name: Dispatch to core.accesslint.com
+      #   uses: peter-evans/repository-dispatch@v3
+      #   with:
+      #     token: ${{ secrets.CORE_DEPLOY_TOKEN }}
+      #     repository: accesslint/core.accesslint.com
+      #     event-type: bench-data-ready
+      #     client-payload: '{"run_id": "${{ github.run_id }}"}'
